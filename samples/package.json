@@ -1,0 +1,15 @@
+{
+  "name": "@samples/samples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "client-credentials": "tsx client-credentials.ts"
+  },
+  "dependencies": {
+    "@logto-io/cli-auth": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

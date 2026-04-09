@@ -80,7 +80,11 @@ export function createCliAuth(config: CliAuthConfig) {
       throw new Error(`Token request failed with status ${response.status}`);
     }
 
-    const data = (await response.json()) as { access_token: string; expires_in: number };
+    const data = (await response.json()) as {
+      access_token: string;
+      token_type: string;
+      expires_in: number;
+    };
     accessToken = data.access_token;
     expiresAt = Date.now() + data.expires_in * 1000;
     await storage.save(data);
