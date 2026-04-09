@@ -74,14 +74,14 @@ async function loginWithFakeTimers(
   auth: ReturnType<typeof createTestAuth>,
   advanceMs = 1000
 ) {
-  const loginPromise = auth.login({ onVerification: vi.fn() });
+  const loginPromise = auth.login({ onAuthorization: vi.fn() });
   await vi.advanceTimersByTimeAsync(advanceMs);
   await loginPromise;
 }
 
 describe("device-code", () => {
   describe("login", () => {
-    it("initiates device code flow, calls onVerification, polls for token", async () => {
+    it("initiates device code flow, calls onAuthorization, polls for token", async () => {
       useDeviceAuthMock(
         (() => {
           let pollCount = 0;
@@ -103,15 +103,15 @@ describe("device-code", () => {
         })()
       );
 
-      const onVerification = vi.fn();
+      const onAuthorization = vi.fn();
       const auth = createTestAuth({ scope: "openid" });
 
-      const loginPromise = auth.login({ onVerification });
+      const loginPromise = auth.login({ onAuthorization });
       // First poll: authorization_pending; second poll: success
       await vi.advanceTimersByTimeAsync(2000);
       await loginPromise;
 
-      expect(onVerification).toHaveBeenCalledWith(
+      expect(onAuthorization).toHaveBeenCalledWith(
         expect.objectContaining({
           userCode: "ABCD-1234",
           verificationUri: "https://auth.example.com/verify",
@@ -223,7 +223,7 @@ describe("device-code", () => {
       );
       const auth = createTestAuth();
 
-      const loginPromise = auth.login({ onVerification: vi.fn() });
+      const loginPromise = auth.login({ onAuthorization: vi.fn() });
       const expectation = expect(loginPromise).rejects.toThrow();
       await vi.advanceTimersByTimeAsync(1000);
       await expectation;
@@ -235,7 +235,7 @@ describe("device-code", () => {
       );
       const auth = createTestAuth();
 
-      const loginPromise = auth.login({ onVerification: vi.fn() });
+      const loginPromise = auth.login({ onAuthorization: vi.fn() });
       const expectation = expect(loginPromise).rejects.toThrow();
       await vi.advanceTimersByTimeAsync(1000);
       await expectation;
@@ -262,7 +262,7 @@ describe("device-code", () => {
       });
 
       const auth = createTestAuth();
-      const loginPromise = auth.login({ onVerification: vi.fn() });
+      const loginPromise = auth.login({ onAuthorization: vi.fn() });
 
       await vi.advanceTimersByTimeAsync(1000);
       await vi.advanceTimersByTimeAsync(6000);

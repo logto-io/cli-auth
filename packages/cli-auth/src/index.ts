@@ -70,7 +70,7 @@ export function createCliAuth(config: CliAuthConfig) {
 
     return {
       async login(options?: {
-        onVerification?: (verification: {
+        onAuthorization?: (authorization: {
           userCode: string;
           verificationUri: string;
           verificationUriComplete?: string;
@@ -117,8 +117,8 @@ export function createCliAuth(config: CliAuthConfig) {
           interval?: number;
         };
 
-        // Step 2: Call onVerification
-        options?.onVerification?.({
+        // Step 2: Call onAuthorization
+        options?.onAuthorization?.({
           userCode: deviceAuth.user_code,
           verificationUri: deviceAuth.verification_uri,
           verificationUriComplete: deviceAuth.verification_uri_complete,
