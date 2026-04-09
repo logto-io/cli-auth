@@ -64,7 +64,42 @@ type AuthorizationCodeConfig = {
 
 type CliAuthConfig = StaticTokenConfig | ClientCredentialsConfig | DeviceCodeConfig | AuthorizationCodeConfig;
 
-export function createCliAuth(config: CliAuthConfig) {
+type BaseAuth = {
+  getToken: () => Promise<string | undefined>;
+  logout: () => Promise<void>;
+  status: () => Promise<{ authenticated: boolean; strategy: string }>;
+};
+
+type StaticTokenAuth = BaseAuth & {
+  login: () => Promise<void>;
+};
+
+type ClientCredentialsAuth = BaseAuth & {
+  login: () => Promise<void>;
+};
+
+type DeviceCodeAuth = BaseAuth & {
+  login: (options?: {
+    onAuthorization?: (authorization: {
+      userCode: string;
+      verificationUri: string;
+      verificationUriComplete?: string;
+      expiresIn: number;
+    }) => void;
+  }) => Promise<void>;
+};
+
+type AuthorizationCodeAuth = BaseAuth & {
+  login: (options?: {
+    onAuthorization?: (url: string) => void;
+  }) => Promise<void>;
+};
+
+export function createCliAuth(config: StaticTokenConfig): StaticTokenAuth;
+export function createCliAuth(config: ClientCredentialsConfig): ClientCredentialsAuth;
+export function createCliAuth(config: DeviceCodeConfig): DeviceCodeAuth;
+export function createCliAuth(config: AuthorizationCodeConfig): AuthorizationCodeAuth;
+export function createCliAuth(config: CliAuthConfig): StaticTokenAuth | ClientCredentialsAuth | DeviceCodeAuth | AuthorizationCodeAuth {
   if (config.strategy === "static-token") {
     return {
       async login() {},
