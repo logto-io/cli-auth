@@ -1,19 +1,22 @@
+import "dotenv/config";
 import { createCliAuth } from "@logto-io/cli-auth";
 
 const auth = createCliAuth({
   strategy: "client-credentials",
   provider: {
-    tokenEndpoint: "https://your-tenant.logto.dev/oidc/token",
-    clientId: "your-client-id",
-    clientSecret: "your-client-secret",
+    tokenEndpoint: process.env.CLIENT_CREDENTIALS_TOKEN_ENDPOINT!,
+    clientId: process.env.CLIENT_CREDENTIALS_CLIENT_ID!,
+    clientSecret: process.env.CLIENT_CREDENTIALS_CLIENT_SECRET!,
   },
   storage: {
     load: async () => undefined,
-    save: async () => {},
+    save: async (data) => {
+      console.log("\nToken response:", JSON.stringify(data, null, 2));
+    },
     clear: async () => {},
   },
-  resource: "https://your-api-resource",
-  scope: "all",
+  resource: process.env.CLIENT_CREDENTIALS_RESOURCE,
+  scope: process.env.CLIENT_CREDENTIALS_SCOPE,
 });
 
 console.log("Logging in...");

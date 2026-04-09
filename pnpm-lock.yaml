@@ -38,6 +38,9 @@ importers:
       '@logto-io/cli-auth':
         specifier: workspace:*
         version: link:../packages/cli-auth
+      dotenv:
+        specifier: ^17.4.1
+        version: 17.4.1
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -453,6 +456,10 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  dotenv@17.4.1:
+    resolution: {integrity: sha512-k8DaKGP6r1G30Lx8V4+pCsLzKr8vLmV2paqEj1Y55GdAgJuIqpRp5FfajGF8KtwMxCz9qJc6wUIJnm053d/WCw==}
+    engines: {node: '>=12'}
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -1136,6 +1143,8 @@ snapshots:
   cookie@1.1.1: {}
 
   detect-libc@2.1.2: {}
+
+  dotenv@17.4.1: {}
 
   emoji-regex@8.0.0: {}
 

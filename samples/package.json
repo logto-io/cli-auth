@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "client-credentials": "tsx client-credentials.ts"
+    "client-credentials": "tsx client-credentials.ts",
+    "authorization-code": "tsx authorization-code.ts"
   },
   "dependencies": {
-    "@logto-io/cli-auth": "workspace:*"
+    "@logto-io/cli-auth": "workspace:*",
+    "dotenv": "^17.4.1"
   },
   "devDependencies": {
     "tsx": "^4.19.0"
