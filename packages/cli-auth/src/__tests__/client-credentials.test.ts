@@ -41,7 +41,7 @@ function createTestAuth(overrides: Record<string, unknown> = {}) {
       clientSecret: "my-secret",
     },
     storage: {
-      load: async () => stored.credential ?? null,
+      load: async () => stored.credential,
       save: async (credential: unknown) => {
         stored.credential = credential;
       },
