@@ -1,148 +1,170 @@
-import type { AuthorizationCodeConfig, AuthorizationCodeAuth, TokenResponse } from "../types.js";
-import { createTokenManager, refreshTokenGrant } from "../token-manager.js";
+import type { Storage, TokenResponse } from "../types.js";
+import { BaseAuth, refreshTokenGrant } from "../base-auth.js";
 
-export function createAuthorizationCodeAuth(config: AuthorizationCodeConfig): AuthorizationCodeAuth {
-  const { provider, storage, resource, scope, extraParams, callbackPort, tokenRefreshThreshold } = config;
+export type AuthorizationCodeConfig = {
+  strategy: "authorization-code";
+  provider: {
+    authorizationEndpoint: string;
+    tokenEndpoint: string;
+    clientId: string;
+  };
+  storage: Storage;
+  resource?: string;
+  scope?: string;
+  extraParams?: Record<string, string>;
+  callbackPort?: number;
+  tokenRefreshThreshold?: number;
+};
 
-  const tokenManager = createTokenManager({
-    storage,
-    strategy: "authorization-code",
-    tokenRefreshThreshold,
-    onRefresh: async (currentRefreshToken) => {
-      if (!currentRefreshToken) return undefined;
-      return refreshTokenGrant(provider.tokenEndpoint, provider.clientId, currentRefreshToken);
-    },
-  });
+export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth: AuthorizationCodeAuth };
 
-  return {
-    async login(options) {
-      const { randomBytes, createHash } = await import("node:crypto");
-      const { createServer } = await import("node:http");
+export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
+  private readonly provider: AuthorizationCodeConfig["provider"];
+  private readonly resource?: string;
+  private readonly scope?: string;
+  private readonly extraParams?: Record<string, string>;
+  private readonly callbackPort?: number;
 
-      // Generate PKCE pair
-      const codeVerifier = randomBytes(32).toString("base64url");
-      const codeChallenge = createHash("sha256")
-        .update(codeVerifier)
-        .digest("base64url");
+  constructor(config: AuthorizationCodeConfig) {
+    super(config.storage, "authorization-code", config.tokenRefreshThreshold);
+    this.provider = config.provider;
+    this.resource = config.resource;
+    this.scope = config.scope;
+    this.extraParams = config.extraParams;
+    this.callbackPort = config.callbackPort;
+  }
 
-      // Generate state
-      const state = randomBytes(16).toString("base64url");
+  protected async onRefresh(currentRefreshToken?: string) {
+    if (!currentRefreshToken) return undefined;
+    return refreshTokenGrant(this.provider.tokenEndpoint, this.provider.clientId, currentRefreshToken);
+  }
 
-      // Start loopback server
-      const callbackServer = createServer();
+  async login(options: {
+    onAuthorization: (url: string) => void;
+  }) {
+    const { randomBytes, createHash } = await import("node:crypto");
+    const { createServer } = await import("node:http");
 
-      const { port } = await new Promise<{ port: number }>(
-        (resolve, reject) => {
-          callbackServer.on("error", reject);
-          callbackServer.listen(
-            callbackPort ?? 0,
-            "127.0.0.1",
-            () => {
-              const addr = callbackServer.address() as { port: number };
-              resolve({ port: addr.port });
-            }
-          );
-        }
-      );
+    // Generate PKCE pair
+    const codeVerifier = randomBytes(32).toString("base64url");
+    const codeChallenge = createHash("sha256")
+      .update(codeVerifier)
+      .digest("base64url");
 
-      const redirectUri = `http://127.0.0.1:${port}/callback`;
+    // Generate state
+    const state = randomBytes(16).toString("base64url");
 
-      // Build authorization URL
-      const authUrl = new URL(provider.authorizationEndpoint);
-      authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("client_id", provider.clientId);
-      authUrl.searchParams.set("redirect_uri", redirectUri);
-      authUrl.searchParams.set("code_challenge", codeChallenge);
-      authUrl.searchParams.set("code_challenge_method", "S256");
-      authUrl.searchParams.set("state", state);
-      if (scope) {
-        authUrl.searchParams.set("scope", scope);
-      }
-      if (extraParams) {
-        for (const [key, value] of Object.entries(extraParams)) {
-          authUrl.searchParams.set(key, value);
-        }
-      }
+    // Start loopback server
+    const callbackServer = createServer();
 
-      options?.onAuthorization?.(authUrl.toString());
-
-      // Wait for callback, exchange token, always close server
-      const closeServer = () =>
-        new Promise<void>((resolve) => callbackServer.close(() => resolve()));
-
-      let code: string;
-      try {
-        code = await new Promise<string>((resolve, reject) => {
-          callbackServer.on("request", (req, res) => {
-            const url = new URL(req.url!, `http://127.0.0.1:${port}`);
-
-            if (url.pathname !== "/callback") {
-              res.writeHead(404).end();
-              return;
-            }
-
-            const error = url.searchParams.get("error");
-            if (error) {
-              const description = url.searchParams.get("error_description") ?? error;
-              res.writeHead(400).end(`Authorization failed: ${description}`);
-              reject(new Error(`Authorization failed: ${description}`));
-              return;
-            }
-
-            const callbackState = url.searchParams.get("state");
-            if (callbackState !== state) {
-              res.writeHead(400).end("State mismatch");
-              reject(new Error("State mismatch"));
-              return;
-            }
-
-            const callbackCode = url.searchParams.get("code");
-            if (!callbackCode) {
-              res.writeHead(400).end("Missing authorization code");
-              reject(new Error("Missing authorization code"));
-              return;
-            }
-
-            res.writeHead(200).end("Authorization successful. You can close this tab.");
-            resolve(callbackCode);
-          });
-        });
-      } catch (error) {
-        await closeServer();
-        throw error;
-      }
-
-      await closeServer();
-
-      // Exchange code for token
-      const tokenBody = new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        code_verifier: codeVerifier,
-        client_id: provider.clientId,
-        redirect_uri: redirectUri,
-      });
-      if (resource) {
-        tokenBody.set("resource", resource);
-      }
-
-      const tokenResponse = await fetch(provider.tokenEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: tokenBody.toString(),
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error(
-          `Token request failed with status ${tokenResponse.status}`
+    const { port } = await new Promise<{ port: number }>(
+      (resolve, reject) => {
+        callbackServer.on("error", reject);
+        callbackServer.listen(
+          this.callbackPort ?? 0,
+          "127.0.0.1",
+          () => {
+            const addr = callbackServer.address() as { port: number };
+            resolve({ port: addr.port });
+          }
         );
       }
+    );
 
-      const data = (await tokenResponse.json()) as TokenResponse;
-      await tokenManager.applyTokenResponse(data);
-    },
-    getToken: tokenManager.getToken,
-    logout: tokenManager.logout,
-    status: tokenManager.status,
-  };
+    const redirectUri = `http://127.0.0.1:${port}/callback`;
+
+    // Build authorization URL
+    const authUrl = new URL(this.provider.authorizationEndpoint);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", this.provider.clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("code_challenge", codeChallenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("state", state);
+    if (this.scope) {
+      authUrl.searchParams.set("scope", this.scope);
+    }
+    if (this.extraParams) {
+      for (const [key, value] of Object.entries(this.extraParams)) {
+        authUrl.searchParams.set(key, value);
+      }
+    }
+
+    options.onAuthorization(authUrl.toString());
+
+    // Wait for callback, exchange token, always close server
+    const closeServer = () =>
+      new Promise<void>((resolve) => callbackServer.close(() => resolve()));
+
+    let code: string;
+    try {
+      code = await new Promise<string>((resolve, reject) => {
+        callbackServer.on("request", (req, res) => {
+          const url = new URL(req.url!, `http://127.0.0.1:${port}`);
+
+          if (url.pathname !== "/callback") {
+            res.writeHead(404).end();
+            return;
+          }
+
+          const error = url.searchParams.get("error");
+          if (error) {
+            const description = url.searchParams.get("error_description") ?? error;
+            res.writeHead(400).end(`Authorization failed: ${description}`);
+            reject(new Error(`Authorization failed: ${description}`));
+            return;
+          }
+
+          const callbackState = url.searchParams.get("state");
+          if (callbackState !== state) {
+            res.writeHead(400).end("State mismatch");
+            reject(new Error("State mismatch"));
+            return;
+          }
+
+          const callbackCode = url.searchParams.get("code");
+          if (!callbackCode) {
+            res.writeHead(400).end("Missing authorization code");
+            reject(new Error("Missing authorization code"));
+            return;
+          }
+
+          res.writeHead(200).end("Authorization successful. You can close this tab.");
+          resolve(callbackCode);
+        });
+      });
+    } catch (error) {
+      await closeServer();
+      throw error;
+    }
+
+    await closeServer();
+
+    // Exchange code for token
+    const tokenBody = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      code_verifier: codeVerifier,
+      client_id: this.provider.clientId,
+      redirect_uri: redirectUri,
+    });
+    if (this.resource) {
+      tokenBody.set("resource", this.resource);
+    }
+
+    const tokenResponse = await fetch(this.provider.tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenBody.toString(),
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(
+        `Token request failed with status ${tokenResponse.status}`
+      );
+    }
+
+    const data = (await tokenResponse.json()) as TokenResponse;
+    await this.applyTokenResponse(data);
+  }
 }
