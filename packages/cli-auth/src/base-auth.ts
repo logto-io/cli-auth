@@ -25,7 +25,7 @@ export abstract class BaseAuth<TStrategy extends string> {
     await this.storage.save(data);
   }
 
-  async getToken(): Promise<string | undefined> {
+  async getToken(): Promise<string> {
     if (!this.accessToken || this.expiresAt === undefined) {
       throw new Error("Not logged in. Call login() first.");
     }

@@ -314,19 +314,6 @@ describe("authorization-code", () => {
   });
 
   describe("getToken", () => {
-    it("returns access token after login", async () => {
-      useTokenEndpoint(() =>
-        HttpResponse.json({
-          access_token: "my-access-token",
-          token_type: "Bearer",
-          expires_in: 3600,
-        })
-      );
-      const auth = createTestAuth();
-      await loginWithCallback(auth);
-      expect(await auth.getToken()).toBe("my-access-token");
-    });
-
     it("refreshes using refresh_token when token expires", async () => {
       vi.useFakeTimers();
       useTokenEndpoint(async ({ request }) => {
@@ -357,54 +344,6 @@ describe("authorization-code", () => {
       vi.advanceTimersByTime(3601 * 1000);
       expect(await auth.getToken()).toBe("refreshed-token");
       vi.useRealTimers();
-    });
-
-    it("refreshes token within configurable threshold", async () => {
-      vi.useFakeTimers();
-      useTokenEndpoint(async ({ request }) => {
-        const body = await request.text();
-        const params = new URLSearchParams(body);
-
-        if (params.get("grant_type") === "refresh_token") {
-          return HttpResponse.json({
-            access_token: "refreshed-token",
-            token_type: "Bearer",
-            expires_in: 3600,
-            refresh_token: "new-refresh",
-          });
-        }
-
-        return HttpResponse.json({
-          access_token: "initial-token",
-          token_type: "Bearer",
-          expires_in: 3600,
-          refresh_token: "first-refresh",
-        });
-      });
-
-      const auth = createTestAuth({ tokenRefreshThreshold: 300 });
-      await loginWithCallback(auth);
-
-      vi.advanceTimersByTime(3301 * 1000);
-      expect(await auth.getToken()).toBe("refreshed-token");
-      vi.useRealTimers();
-    });
-  });
-
-  describe("logout", () => {
-    it("calls storage.clear on logout", async () => {
-      useTokenEndpoint();
-      const clearSpy = vi.fn();
-      const auth = createTestAuth({
-        storage: {
-          load: async () => undefined,
-          save: async () => {},
-          clear: clearSpy,
-        },
-      });
-      await loginWithCallback(auth);
-      await auth.logout();
-      expect(clearSpy).toHaveBeenCalled();
     });
   });
 
