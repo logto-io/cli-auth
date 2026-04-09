@@ -9,9 +9,14 @@ export abstract class BaseAuth<TStrategy extends string> {
     protected readonly storage: Storage,
     readonly strategy: TStrategy,
     protected readonly tokenRefreshThreshold?: number,
+    protected readonly resource?: string,
+    protected readonly scope?: string,
+    protected readonly extraParams?: Record<string, string>,
   ) {}
 
-  protected abstract onRefresh(refreshToken?: string): Promise<TokenResponse | undefined>;
+  protected async onRefresh(_refreshToken?: string): Promise<TokenResponse | undefined> {
+    return undefined;
+  }
 
   protected async applyTokenResponse(data: TokenResponse) {
     this.accessToken = data.access_token;
@@ -41,6 +46,16 @@ export abstract class BaseAuth<TStrategy extends string> {
     await this.storage.clear();
   }
 
+  protected applyOptionalParams(params: { set(key: string, value: string): void }) {
+    if (this.resource) params.set("resource", this.resource);
+    if (this.scope) params.set("scope", this.scope);
+    if (this.extraParams) {
+      for (const [key, value] of Object.entries(this.extraParams)) {
+        params.set(key, value);
+      }
+    }
+  }
+
   async status(): Promise<{ authenticated: boolean; strategy: TStrategy }> {
     return {
       authenticated: this.accessToken !== undefined,
@@ -49,25 +64,33 @@ export abstract class BaseAuth<TStrategy extends string> {
   }
 }
 
+export async function fetchTokenResponse(
+  endpoint: string,
+  body: URLSearchParams,
+  headers?: Record<string, string>,
+): Promise<TokenResponse> {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", ...headers },
+    body: body.toString(),
+  });
+  if (!response.ok) {
+    throw new Error(`Token request failed with status ${response.status}`);
+  }
+  return (await response.json()) as TokenResponse;
+}
+
 export async function refreshTokenGrant(
   tokenEndpoint: string,
   clientId: string,
   refreshToken: string,
 ): Promise<TokenResponse> {
-  const body = new URLSearchParams({
-    client_id: clientId,
-    grant_type: "refresh_token",
-    refresh_token: refreshToken,
-  });
-  const response = await fetch(tokenEndpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Token refresh failed with status ${response.status}`
-    );
-  }
-  return (await response.json()) as TokenResponse;
+  return fetchTokenResponse(
+    tokenEndpoint,
+    new URLSearchParams({
+      client_id: clientId,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  );
 }

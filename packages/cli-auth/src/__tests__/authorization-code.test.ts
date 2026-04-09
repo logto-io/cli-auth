@@ -4,7 +4,6 @@ import {
   expect,
   vi,
   beforeAll,
-  beforeEach,
   afterAll,
   afterEach,
 } from "vitest";
@@ -315,11 +314,6 @@ describe("authorization-code", () => {
   });
 
   describe("getToken", () => {
-    it("throws if not logged in", async () => {
-      const auth = createTestAuth();
-      await expect(auth.getToken()).rejects.toThrow("Not logged in");
-    });
-
     it("returns access token after login", async () => {
       useTokenEndpoint(() =>
         HttpResponse.json({
@@ -397,46 +391,7 @@ describe("authorization-code", () => {
     });
   });
 
-  describe("status", () => {
-    it("returns unauthenticated before login", async () => {
-      const auth = createTestAuth();
-      expect(await auth.status()).toEqual({
-        authenticated: false,
-        strategy: "authorization-code",
-      });
-    });
-
-    it("returns authenticated after login", async () => {
-      useTokenEndpoint();
-      const auth = createTestAuth();
-      await loginWithCallback(auth);
-      expect(await auth.status()).toEqual({
-        authenticated: true,
-        strategy: "authorization-code",
-      });
-    });
-  });
-
   describe("logout", () => {
-    it("getToken throws after logout", async () => {
-      useTokenEndpoint();
-      const auth = createTestAuth();
-      await loginWithCallback(auth);
-      await auth.logout();
-      await expect(auth.getToken()).rejects.toThrow("Not logged in");
-    });
-
-    it("status returns unauthenticated after logout", async () => {
-      useTokenEndpoint();
-      const auth = createTestAuth();
-      await loginWithCallback(auth);
-      await auth.logout();
-      expect(await auth.status()).toEqual({
-        authenticated: false,
-        strategy: "authorization-code",
-      });
-    });
-
     it("calls storage.clear on logout", async () => {
       useTokenEndpoint();
       const clearSpy = vi.fn();

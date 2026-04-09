@@ -1,5 +1,5 @@
-import type { Storage, TokenResponse } from "../types.js";
-import { BaseAuth, refreshTokenGrant } from "../base-auth.js";
+import type { Storage } from "../types.js";
+import { BaseAuth, refreshTokenGrant, fetchTokenResponse } from "../base-auth.js";
 
 export type AuthorizationCodeConfig = {
   strategy: "authorization-code";
@@ -20,17 +20,11 @@ export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth:
 
 export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
   private readonly provider: AuthorizationCodeConfig["provider"];
-  private readonly resource?: string;
-  private readonly scope?: string;
-  private readonly extraParams?: Record<string, string>;
   private readonly callbackPort?: number;
 
   constructor(config: AuthorizationCodeConfig) {
-    super(config.storage, "authorization-code", config.tokenRefreshThreshold);
+    super(config.storage, "authorization-code", config.tokenRefreshThreshold, config.resource, config.scope, config.extraParams);
     this.provider = config.provider;
-    this.resource = config.resource;
-    this.scope = config.scope;
-    this.extraParams = config.extraParams;
     this.callbackPort = config.callbackPort;
   }
 
@@ -152,19 +146,7 @@ export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
       tokenBody.set("resource", this.resource);
     }
 
-    const tokenResponse = await fetch(this.provider.tokenEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: tokenBody.toString(),
-    });
-
-    if (!tokenResponse.ok) {
-      throw new Error(
-        `Token request failed with status ${tokenResponse.status}`
-      );
-    }
-
-    const data = (await tokenResponse.json()) as TokenResponse;
+    const data = await fetchTokenResponse(this.provider.tokenEndpoint, tokenBody);
     await this.applyTokenResponse(data);
   }
 }

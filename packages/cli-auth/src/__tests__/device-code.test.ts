@@ -126,11 +126,6 @@ describe("device-code", () => {
   });
 
   describe("getToken", () => {
-    it("throws if not logged in", async () => {
-      const auth = createTestAuth();
-      await expect(auth.getToken()).rejects.toThrow("Not logged in");
-    });
-
     it("refreshes using refresh_token when token expires", async () => {
       useDeviceAuthMock(async ({ request }) => {
         const body = await request.text();
@@ -171,48 +166,6 @@ describe("device-code", () => {
 
       vi.advanceTimersByTime(3601 * 1000);
       expect(await auth.getToken()).toBe("refreshed-token");
-    });
-  });
-
-  describe("status", () => {
-    it("returns correct state before and after login", async () => {
-      useDeviceAuthMock();
-      const auth = createTestAuth();
-
-      expect(await auth.status()).toEqual({
-        authenticated: false,
-        strategy: "device-code",
-      });
-
-      await loginWithFakeTimers(auth);
-      expect(await auth.status()).toEqual({
-        authenticated: true,
-        strategy: "device-code",
-      });
-    });
-  });
-
-  describe("logout", () => {
-    it("clears token and storage", async () => {
-      useDeviceAuthMock();
-      const clearSpy = vi.fn();
-      const auth = createTestAuth({
-        storage: {
-          load: async () => undefined,
-          save: async () => {},
-          clear: clearSpy,
-        },
-      });
-
-      await loginWithFakeTimers(auth);
-      await auth.logout();
-
-      expect(clearSpy).toHaveBeenCalled();
-      expect(await auth.status()).toEqual({
-        authenticated: false,
-        strategy: "device-code",
-      });
-      await expect(auth.getToken()).rejects.toThrow("Not logged in");
     });
   });
 

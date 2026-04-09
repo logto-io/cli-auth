@@ -19,16 +19,10 @@ export type DeviceCodeStrategy = { config: DeviceCodeConfig; auth: DeviceCodeAut
 
 export class DeviceCodeAuth extends BaseAuth<"device-code"> {
   private readonly provider: DeviceCodeConfig["provider"];
-  private readonly resource?: string;
-  private readonly scope?: string;
-  private readonly extraParams?: Record<string, string>;
 
   constructor(config: DeviceCodeConfig) {
-    super(config.storage, "device-code", config.tokenRefreshThreshold);
+    super(config.storage, "device-code", config.tokenRefreshThreshold, config.resource, config.scope, config.extraParams);
     this.provider = config.provider;
-    this.resource = config.resource;
-    this.scope = config.scope;
-    this.extraParams = config.extraParams;
   }
 
   protected async onRefresh(currentRefreshToken?: string) {
@@ -48,17 +42,7 @@ export class DeviceCodeAuth extends BaseAuth<"device-code"> {
     const deviceAuthBody = new URLSearchParams({
       client_id: this.provider.clientId,
     });
-    if (this.scope) {
-      deviceAuthBody.set("scope", this.scope);
-    }
-    if (this.resource) {
-      deviceAuthBody.set("resource", this.resource);
-    }
-    if (this.extraParams) {
-      for (const [key, value] of Object.entries(this.extraParams)) {
-        deviceAuthBody.set(key, value);
-      }
-    }
+    this.applyOptionalParams(deviceAuthBody);
 
     const deviceAuthResponse = await fetch(
       this.provider.deviceAuthorizationEndpoint,
