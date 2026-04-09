@@ -13,11 +13,6 @@ type TokenResponse = {
   scope?: string;
 };
 
-type StaticTokenConfig = {
-  strategy: "static-token";
-  token: string;
-};
-
 type ClientCredentialsConfig = {
   strategy: "client-credentials";
   provider: {
@@ -62,23 +57,19 @@ type AuthorizationCodeConfig = {
   tokenRefreshThreshold?: number;
 };
 
-type CliAuthConfig = StaticTokenConfig | ClientCredentialsConfig | DeviceCodeConfig | AuthorizationCodeConfig;
+type CliAuthConfig = ClientCredentialsConfig | DeviceCodeConfig | AuthorizationCodeConfig;
 
-type BaseAuth = {
+type BaseAuth<TStrategy extends string> = {
   getToken: () => Promise<string | undefined>;
   logout: () => Promise<void>;
-  status: () => Promise<{ authenticated: boolean; strategy: string }>;
+  status: () => Promise<{ authenticated: boolean; strategy: TStrategy }>;
 };
 
-type StaticTokenAuth = BaseAuth & {
+type ClientCredentialsAuth = BaseAuth<"client-credentials"> & {
   login: () => Promise<void>;
 };
 
-type ClientCredentialsAuth = BaseAuth & {
-  login: () => Promise<void>;
-};
-
-type DeviceCodeAuth = BaseAuth & {
+type DeviceCodeAuth = BaseAuth<"device-code"> & {
   login: (options?: {
     onAuthorization?: (authorization: {
       userCode: string;
@@ -89,30 +80,16 @@ type DeviceCodeAuth = BaseAuth & {
   }) => Promise<void>;
 };
 
-type AuthorizationCodeAuth = BaseAuth & {
+type AuthorizationCodeAuth = BaseAuth<"authorization-code"> & {
   login: (options?: {
     onAuthorization?: (url: string) => void;
   }) => Promise<void>;
 };
 
-export function createCliAuth(config: StaticTokenConfig): StaticTokenAuth;
 export function createCliAuth(config: ClientCredentialsConfig): ClientCredentialsAuth;
 export function createCliAuth(config: DeviceCodeConfig): DeviceCodeAuth;
 export function createCliAuth(config: AuthorizationCodeConfig): AuthorizationCodeAuth;
-export function createCliAuth(config: CliAuthConfig): StaticTokenAuth | ClientCredentialsAuth | DeviceCodeAuth | AuthorizationCodeAuth {
-  if (config.strategy === "static-token") {
-    return {
-      async login() {},
-      async getToken() {
-        return config.token;
-      },
-      async logout() {},
-      async status() {
-        return { authenticated: true, strategy: "static-token" as const };
-      },
-    };
-  }
-
+export function createCliAuth(config: CliAuthConfig): ClientCredentialsAuth | DeviceCodeAuth | AuthorizationCodeAuth {
   if (config.strategy === "device-code") {
     const { provider, storage, resource, scope, extraParams, tokenRefreshThreshold } = config;
 
