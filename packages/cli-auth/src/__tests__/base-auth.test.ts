@@ -7,7 +7,7 @@ class TestAuth extends BaseAuth<"test"> {
   readonly onRefresh = vi.fn<(refreshToken?: string) => Promise<TokenResponse | undefined>>();
 
   constructor(storage: Storage, tokenRefreshThreshold?: number) {
-    super(storage, "test", tokenRefreshThreshold);
+    super({ storage, strategy: "test", tokenRefreshThreshold });
   }
 
   async login(response: TokenResponse) {

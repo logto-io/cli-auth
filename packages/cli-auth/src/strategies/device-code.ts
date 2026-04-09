@@ -21,7 +21,8 @@ export class DeviceCodeAuth extends BaseAuth<"device-code"> {
   private readonly provider: DeviceCodeConfig["provider"];
 
   constructor(config: DeviceCodeConfig) {
-    super(config.storage, "device-code", config.tokenRefreshThreshold, config.resource, config.scope, config.extraParams);
+    const { storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
+    super({ storage, strategy: "device-code", tokenRefreshThreshold, resource, scope, extraParams });
     this.provider = config.provider;
   }
 

@@ -1,18 +1,34 @@
 import type { Storage, TokenResponse } from "./types.js";
 
+export type BaseAuthConfig<TStrategy extends string> = {
+  storage: Storage;
+  strategy: TStrategy;
+  tokenRefreshThreshold?: number;
+  resource?: string;
+  scope?: string;
+  extraParams?: Record<string, string>;
+};
+
 export abstract class BaseAuth<TStrategy extends string> {
   private accessToken: string | undefined;
   private refreshToken: string | undefined;
   private expiresAt: number | undefined;
 
-  constructor(
-    protected readonly storage: Storage,
-    readonly strategy: TStrategy,
-    protected readonly tokenRefreshThreshold?: number,
-    protected readonly resource?: string,
-    protected readonly scope?: string,
-    protected readonly extraParams?: Record<string, string>,
-  ) {}
+  protected readonly storage: Storage;
+  readonly strategy: TStrategy;
+  protected readonly tokenRefreshThreshold?: number;
+  protected readonly resource?: string;
+  protected readonly scope?: string;
+  protected readonly extraParams?: Record<string, string>;
+
+  constructor(config: BaseAuthConfig<TStrategy>) {
+    this.storage = config.storage;
+    this.strategy = config.strategy;
+    this.tokenRefreshThreshold = config.tokenRefreshThreshold;
+    this.resource = config.resource;
+    this.scope = config.scope;
+    this.extraParams = config.extraParams;
+  }
 
   protected async onRefresh(_refreshToken?: string): Promise<TokenResponse | undefined> {
     return undefined;

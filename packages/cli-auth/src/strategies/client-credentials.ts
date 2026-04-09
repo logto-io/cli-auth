@@ -22,7 +22,8 @@ export class ClientCredentialsAuth extends BaseAuth<"client-credentials"> {
   private readonly provider: ClientCredentialsConfig["provider"];
 
   constructor(config: ClientCredentialsConfig) {
-    super(config.storage, "client-credentials", config.tokenRefreshThreshold, config.resource, config.scope, config.extraParams);
+    const { storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
+    super({ storage, strategy: "client-credentials", tokenRefreshThreshold, resource, scope, extraParams });
     this.provider = config.provider;
   }
 

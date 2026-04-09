@@ -23,7 +23,8 @@ export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
   private readonly callbackPort?: number;
 
   constructor(config: AuthorizationCodeConfig) {
-    super(config.storage, "authorization-code", config.tokenRefreshThreshold, config.resource, config.scope, config.extraParams);
+    const { storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
+    super({ storage, strategy: "authorization-code", tokenRefreshThreshold, resource, scope, extraParams });
     this.provider = config.provider;
     this.callbackPort = config.callbackPort;
   }
