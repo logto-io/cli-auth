@@ -50,6 +50,8 @@ export abstract class BaseAuth<TStrategy extends string> {
       const data = await this.onRefresh(this.refreshToken);
       if (data) {
         await this.applyTokenResponse(data);
+      } else {
+        throw new Error("Token expired and cannot be refreshed.");
       }
     }
     return this.accessToken;

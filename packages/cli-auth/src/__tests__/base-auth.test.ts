@@ -167,7 +167,7 @@ describe("BaseAuth", () => {
   });
 
   describe("onRefresh returns undefined", () => {
-    it("accessToken remains unchanged when onRefresh returns undefined", async () => {
+    it("throws when token is expired and onRefresh returns undefined", async () => {
       vi.useFakeTimers();
       const auth = new TestAuth(createMockStorage());
       auth.onRefresh.mockResolvedValue(undefined);
@@ -176,8 +176,7 @@ describe("BaseAuth", () => {
       // Expire the token
       vi.advanceTimersByTime(3601 * 1000);
 
-      // onRefresh returns undefined, so original token should be returned
-      expect(await auth.getToken()).toBe("access-1");
+      await expect(auth.getToken()).rejects.toThrow("Token expired and cannot be refreshed.");
       expect(auth.onRefresh).toHaveBeenCalledOnce();
     });
   });
