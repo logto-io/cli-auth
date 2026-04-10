@@ -1,31 +1,37 @@
 import type { DeviceCodeStrategy } from "./strategies/device-code.js";
 import type { AuthorizationCodeStrategy } from "./strategies/authorization-code.js";
 import type { ClientCredentialsStrategy } from "./strategies/client-credentials.js";
+import type { TokenExchangeStrategy } from "./strategies/token-exchange.js";
 import { DeviceCodeAuth } from "./strategies/device-code.js";
 import { AuthorizationCodeAuth } from "./strategies/authorization-code.js";
 import { ClientCredentialsAuth } from "./strategies/client-credentials.js";
+import { TokenExchangeAuth } from "./strategies/token-exchange.js";
 
 export type { Storage, TokenResponse } from "./types.js";
 export { BaseAuth } from "./base-auth.js";
 export { DeviceCodeAuth, type DeviceCodeConfig } from "./strategies/device-code.js";
 export { AuthorizationCodeAuth, type AuthorizationCodeConfig } from "./strategies/authorization-code.js";
 export { ClientCredentialsAuth, type ClientCredentialsConfig } from "./strategies/client-credentials.js";
+export { TokenExchangeAuth, type TokenExchangeConfig, tokenTypeIdentifiers } from "./strategies/token-exchange.js";
 
 export type CliAuthConfig =
   | DeviceCodeStrategy["config"]
   | AuthorizationCodeStrategy["config"]
-  | ClientCredentialsStrategy["config"];
+  | ClientCredentialsStrategy["config"]
+  | TokenExchangeStrategy["config"];
 
 type StrategyMap = {
   "device-code": DeviceCodeStrategy;
   "authorization-code": AuthorizationCodeStrategy;
   "client-credentials": ClientCredentialsStrategy;
+  "token-exchange": TokenExchangeStrategy;
 };
 
 const strategies: { [K in keyof StrategyMap]: new (config: StrategyMap[K]["config"]) => StrategyMap[K]["auth"] } = {
   "device-code": DeviceCodeAuth,
   "authorization-code": AuthorizationCodeAuth,
   "client-credentials": ClientCredentialsAuth,
+  "token-exchange": TokenExchangeAuth,
 };
 
 export function createCliAuth<K extends keyof StrategyMap>(
