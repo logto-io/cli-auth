@@ -148,9 +148,30 @@ describe("BaseAuth", () => {
   });
 
   describe("tokenRefreshThreshold", () => {
+    it("defaults to 300 seconds when not configured", async () => {
+      vi.useFakeTimers();
+      const auth = new TestAuth(createMockStorage());
+      auth.onRefresh.mockResolvedValue({
+        access_token: "access-default-threshold",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+      await auth.login(sampleToken);
+
+      // At 3299s — outside the 300s default threshold, should NOT refresh
+      vi.advanceTimersByTime(3299 * 1000);
+      expect(await auth.getToken()).toBe("access-1");
+      expect(auth.onRefresh).not.toHaveBeenCalled();
+
+      // At 3301s — within the 300s default threshold, should refresh
+      vi.advanceTimersByTime(2 * 1000);
+      expect(await auth.getToken()).toBe("access-default-threshold");
+      expect(auth.onRefresh).toHaveBeenCalledOnce();
+    });
+
     it("refreshes within configurable threshold", async () => {
       vi.useFakeTimers();
-      const auth = new TestAuth(createMockStorage(), 300);
+      const auth = new TestAuth(createMockStorage(), 600);
       auth.onRefresh.mockResolvedValue({
         access_token: "access-threshold",
         token_type: "Bearer",
@@ -158,8 +179,8 @@ describe("BaseAuth", () => {
       });
       await auth.login(sampleToken);
 
-      // Advance to 3301s — within the 300s threshold before 3600s expiry
-      vi.advanceTimersByTime(3301 * 1000);
+      // Advance to 3001s — within the 600s threshold before 3600s expiry
+      vi.advanceTimersByTime(3001 * 1000);
 
       expect(await auth.getToken()).toBe("access-threshold");
       expect(auth.onRefresh).toHaveBeenCalledOnce();

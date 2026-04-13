@@ -45,7 +45,7 @@ export abstract class BaseAuth<TStrategy extends string> {
     if (!this.accessToken || this.expiresAt === undefined) {
       throw new Error("Not logged in. Call login() first.");
     }
-    const threshold = (this.tokenRefreshThreshold ?? 0) * 1000;
+    const threshold = (this.tokenRefreshThreshold ?? 300) * 1000;
     if (Date.now() >= this.expiresAt - threshold) {
       const data = await this.onRefresh(this.refreshToken);
       if (data) {
