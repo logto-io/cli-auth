@@ -41,11 +41,8 @@ function useTokenEndpoint(
 function createTestAuth(overrides: Record<string, unknown> = {}) {
   return createCliAuth({
     strategy: "authorization-code" as const,
-    provider: {
-      authorizationEndpoint,
-      tokenEndpoint,
-      clientId: "my-client",
-    },
+    provider: { type: "oidc", metadata: { authorizationEndpoint, tokenEndpoint } },
+    clientId: "my-client",
     storage: {
       load: async () => undefined,
       save: async () => {},

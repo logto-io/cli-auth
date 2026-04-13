@@ -1,30 +1,18 @@
-import type { Storage, TokenResponse } from "../types.js";
+import type { ClientCredentialsConfig } from "../config.js";
+import type { TokenResponse } from "../types.js";
 import { BaseAuth, fetchTokenResponse } from "../base-auth.js";
-
-export type ClientCredentialsConfig = {
-  strategy: "client-credentials";
-  provider: {
-    tokenEndpoint: string;
-    clientId: string;
-    clientSecret: string;
-    tokenEndpointAuthMethod?: "client_secret_post" | "client_secret_basic";
-  };
-  storage: Storage;
-  resource?: string;
-  scope?: string;
-  extraParams?: Record<string, string>;
-  tokenRefreshThreshold?: number;
-};
 
 export type ClientCredentialsStrategy = { config: ClientCredentialsConfig; auth: ClientCredentialsAuth };
 
 export class ClientCredentialsAuth extends BaseAuth<"client-credentials"> {
-  private readonly provider: ClientCredentialsConfig["provider"];
+  private readonly clientSecret: string;
+  private readonly tokenEndpointAuthMethod: ClientCredentialsConfig["tokenEndpointAuthMethod"];
 
   constructor(config: ClientCredentialsConfig) {
-    const { storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
-    super({ storage, strategy: "client-credentials", tokenRefreshThreshold, resource, scope, extraParams });
-    this.provider = config.provider;
+    const { provider, clientId, storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
+    super({ provider, clientId, storage, strategy: "client-credentials", tokenRefreshThreshold, resource, scope, extraParams });
+    this.clientSecret = config.clientSecret;
+    this.tokenEndpointAuthMethod = config.tokenEndpointAuthMethod;
   }
 
   protected async onRefresh() {
@@ -32,21 +20,21 @@ export class ClientCredentialsAuth extends BaseAuth<"client-credentials"> {
   }
 
   private async fetchToken(): Promise<TokenResponse> {
-    const authMethod = this.provider.tokenEndpointAuthMethod ?? "client_secret_post";
+    const authMethod = this.tokenEndpointAuthMethod ?? "client_secret_post";
     const body = new URLSearchParams({ grant_type: "client_credentials" });
     const extraHeaders: Record<string, string> = {};
 
     if (authMethod === "client_secret_basic") {
       extraHeaders["Authorization"] =
-        `Basic ${btoa(`${this.provider.clientId}:${this.provider.clientSecret}`)}`;
+        `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`;
     } else {
-      body.set("client_id", this.provider.clientId);
-      body.set("client_secret", this.provider.clientSecret);
+      body.set("client_id", this.clientId);
+      body.set("client_secret", this.clientSecret);
     }
 
     this.applyOptionalParams(body);
 
-    return fetchTokenResponse(this.provider.tokenEndpoint, body, extraHeaders);
+    return fetchTokenResponse(this.provider.metadata.tokenEndpoint, body, extraHeaders);
   }
 
   async login() {

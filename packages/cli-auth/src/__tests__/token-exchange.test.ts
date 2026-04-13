@@ -40,7 +40,8 @@ function createTestAuth(overrides: Record<string, unknown> = {}) {
   const stored: Record<string, unknown> = {};
   return createCliAuth({
     strategy: "token-exchange",
-    provider: { tokenEndpoint, clientId: "my-client" },
+    provider: { type: "oidc", metadata: { tokenEndpoint } },
+    clientId: "my-client",
     subjectToken: "pat_abc123",
     subjectTokenType: "urn:logto:token-type:personal_access_token",
     storage: {
@@ -120,11 +121,7 @@ describe("token-exchange", () => {
     it("sends client_id and client_secret in request body", async () => {
       const { getBody, getHeaders } = useCaptureTokenEndpoint();
       const auth = createTestAuth({
-        provider: {
-          tokenEndpoint,
-          clientId: "my-client",
-          clientSecret: "my-secret",
-        },
+        clientSecret: "my-secret",
       });
       await auth.login();
       expect(getBody().get("client_id")).toBe("my-client");
@@ -137,12 +134,8 @@ describe("token-exchange", () => {
     it("sends Basic auth header and omits client_id/client_secret from body", async () => {
       const { getBody, getHeaders } = useCaptureTokenEndpoint();
       const auth = createTestAuth({
-        provider: {
-          tokenEndpoint,
-          clientId: "my-client",
-          clientSecret: "my-secret",
-          tokenEndpointAuthMethod: "client_secret_basic",
-        },
+        clientSecret: "my-secret",
+        tokenEndpointAuthMethod: "client_secret_basic",
       });
       await auth.login();
       expect(getHeaders().get("Authorization")).toBe(

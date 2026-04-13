@@ -1,47 +1,30 @@
-import type { Storage } from "../types.js";
+import type { TokenExchangeConfig } from "../config.js";
 import { BaseAuth, fetchTokenResponse, refreshTokenGrant } from "../base-auth.js";
-
-export type TokenExchangeConfig = {
-  strategy: "token-exchange";
-  provider: {
-    tokenEndpoint: string;
-    clientId: string;
-    clientSecret?: string;
-    tokenEndpointAuthMethod?: "client_secret_post" | "client_secret_basic";
-  };
-  subjectToken: string;
-  subjectTokenType: string;
-  actorToken?: string;
-  actorTokenType?: string;
-  storage: Storage;
-  resource?: string;
-  scope?: string;
-  extraParams?: Record<string, string>;
-  tokenRefreshThreshold?: number;
-};
 
 export type TokenExchangeStrategy = { config: TokenExchangeConfig; auth: TokenExchangeAuth };
 
 export class TokenExchangeAuth extends BaseAuth<"token-exchange"> {
-  private readonly provider: TokenExchangeConfig["provider"];
   private readonly subjectToken: string;
   private readonly subjectTokenType: string;
   private readonly actorToken?: string;
   private readonly actorTokenType?: string;
+  private readonly clientSecret?: string;
+  private readonly tokenEndpointAuthMethod: TokenExchangeConfig["tokenEndpointAuthMethod"];
 
   constructor(config: TokenExchangeConfig) {
-    const { storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
-    super({ storage, strategy: "token-exchange", tokenRefreshThreshold, resource, scope, extraParams });
-    this.provider = config.provider;
+    const { provider, clientId, storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
+    super({ provider, clientId, storage, strategy: "token-exchange", tokenRefreshThreshold, resource, scope, extraParams });
     this.subjectToken = config.subjectToken;
     this.subjectTokenType = config.subjectTokenType;
     this.actorToken = config.actorToken;
     this.actorTokenType = config.actorTokenType;
+    this.clientSecret = config.clientSecret;
+    this.tokenEndpointAuthMethod = config.tokenEndpointAuthMethod;
   }
 
   protected async onRefresh(currentRefreshToken?: string) {
     if (currentRefreshToken) {
-      return refreshTokenGrant(this.provider.tokenEndpoint, this.provider.clientId, currentRefreshToken);
+      return refreshTokenGrant(this.provider.metadata.tokenEndpoint, this.clientId, currentRefreshToken);
     }
     return this.exchangeToken();
   }
@@ -54,16 +37,16 @@ export class TokenExchangeAuth extends BaseAuth<"token-exchange"> {
     });
 
     const extraHeaders: Record<string, string> = {};
-    const authMethod = this.provider.tokenEndpointAuthMethod ?? "client_secret_post";
+    const authMethod = this.tokenEndpointAuthMethod ?? "client_secret_post";
 
-    if (this.provider.clientSecret && authMethod === "client_secret_basic") {
+    if (this.clientSecret && authMethod === "client_secret_basic") {
       extraHeaders["Authorization"] =
-        `Basic ${btoa(`${this.provider.clientId}:${this.provider.clientSecret}`)}`;
-    } else if (this.provider.clientSecret) {
-      body.set("client_id", this.provider.clientId);
-      body.set("client_secret", this.provider.clientSecret);
+        `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`;
+    } else if (this.clientSecret) {
+      body.set("client_id", this.clientId);
+      body.set("client_secret", this.clientSecret);
     } else {
-      body.set("client_id", this.provider.clientId);
+      body.set("client_id", this.clientId);
     }
 
     if (this.actorToken) {
@@ -75,7 +58,7 @@ export class TokenExchangeAuth extends BaseAuth<"token-exchange"> {
 
     this.applyOptionalParams(body);
 
-    return fetchTokenResponse(this.provider.tokenEndpoint, body, extraHeaders);
+    return fetchTokenResponse(this.provider.metadata.tokenEndpoint, body, extraHeaders);
   }
 
   async login() {

@@ -1,34 +1,18 @@
-import type { Storage, TokenResponse } from "../types.js";
+import type { DeviceCodeConfig } from "../config.js";
+import type { TokenResponse } from "../types.js";
 import { BaseAuth, refreshTokenGrant } from "../base-auth.js";
-
-export type DeviceCodeConfig = {
-  strategy: "device-code";
-  provider: {
-    deviceAuthorizationEndpoint: string;
-    tokenEndpoint: string;
-    clientId: string;
-  };
-  storage: Storage;
-  resource?: string;
-  scope?: string;
-  extraParams?: Record<string, string>;
-  tokenRefreshThreshold?: number;
-};
 
 export type DeviceCodeStrategy = { config: DeviceCodeConfig; auth: DeviceCodeAuth };
 
 export class DeviceCodeAuth extends BaseAuth<"device-code"> {
-  private readonly provider: DeviceCodeConfig["provider"];
-
   constructor(config: DeviceCodeConfig) {
-    const { storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
-    super({ storage, strategy: "device-code", tokenRefreshThreshold, resource, scope, extraParams });
-    this.provider = config.provider;
+    const { provider, clientId, storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
+    super({ provider, clientId, storage, strategy: "device-code", tokenRefreshThreshold, resource, scope, extraParams });
   }
 
   protected async onRefresh(currentRefreshToken?: string) {
     if (!currentRefreshToken) return undefined;
-    return refreshTokenGrant(this.provider.tokenEndpoint, this.provider.clientId, currentRefreshToken);
+    return refreshTokenGrant(this.provider.metadata.tokenEndpoint, this.clientId, currentRefreshToken);
   }
 
   async login(options: {
@@ -39,14 +23,19 @@ export class DeviceCodeAuth extends BaseAuth<"device-code"> {
       expiresIn: number;
     }) => void;
   }) {
+    const { deviceAuthorizationEndpoint } = this.provider.metadata;
+    if (!deviceAuthorizationEndpoint) {
+      throw new Error("deviceAuthorizationEndpoint is required for device-code strategy");
+    }
+
     // Step 1: Request device authorization
     const deviceAuthBody = new URLSearchParams({
-      client_id: this.provider.clientId,
+      client_id: this.clientId,
     });
     this.applyOptionalParams(deviceAuthBody);
 
     const deviceAuthResponse = await fetch(
-      this.provider.deviceAuthorizationEndpoint,
+      deviceAuthorizationEndpoint,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -85,7 +74,7 @@ export class DeviceCodeAuth extends BaseAuth<"device-code"> {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
       const tokenBody = new URLSearchParams({
-        client_id: this.provider.clientId,
+        client_id: this.clientId,
         device_code: deviceAuth.device_code,
         grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       });
@@ -93,7 +82,7 @@ export class DeviceCodeAuth extends BaseAuth<"device-code"> {
         tokenBody.set("resource", this.resource);
       }
 
-      const tokenResponse = await fetch(this.provider.tokenEndpoint, {
+      const tokenResponse = await fetch(this.provider.metadata.tokenEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: tokenBody.toString(),

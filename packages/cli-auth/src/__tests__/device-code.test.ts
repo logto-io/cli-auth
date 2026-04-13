@@ -56,11 +56,8 @@ function useDeviceAuthMock(
 function createTestAuth(overrides: Record<string, unknown> = {}) {
   return createCliAuth({
     strategy: "device-code" as const,
-    provider: {
-      deviceAuthorizationEndpoint: deviceAuthEndpoint,
-      tokenEndpoint,
-      clientId: "my-client",
-    },
+    provider: { type: "oidc", metadata: { tokenEndpoint, deviceAuthorizationEndpoint: deviceAuthEndpoint } },
+    clientId: "my-client",
     storage: {
       load: async () => undefined,
       save: async () => {},

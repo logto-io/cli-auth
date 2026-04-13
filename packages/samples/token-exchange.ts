@@ -5,6 +5,11 @@ const tokenEndpoint = process.env.TOKEN_EXCHANGE_TOKEN_ENDPOINT!;
 const clientId = process.env.TOKEN_EXCHANGE_CLIENT_ID!;
 const subjectToken = process.env.TOKEN_EXCHANGE_SUBJECT_TOKEN!;
 
+const provider = {
+  type: "oidc" as const,
+  metadata: { tokenEndpoint },
+};
+
 const storage = {
   load: async () => undefined,
   save: async (data: unknown) => {
@@ -17,7 +22,8 @@ const storage = {
 console.log("=== Test 1: Basic token exchange ===");
 const auth1 = createCliAuth({
   strategy: "token-exchange",
-  provider: { tokenEndpoint, clientId },
+  provider,
+  clientId,
   subjectToken,
   subjectTokenType: "urn:logto:token-type:personal_access_token",
   storage,
@@ -31,7 +37,8 @@ console.log("Access token:", await auth1.getToken());
 console.log("\n=== Test 2: With resource and scope ===");
 const auth2 = createCliAuth({
   strategy: "token-exchange",
-  provider: { tokenEndpoint, clientId },
+  provider,
+  clientId,
   subjectToken,
   subjectTokenType: "urn:logto:token-type:personal_access_token",
   scope: "openid offline_access profile",

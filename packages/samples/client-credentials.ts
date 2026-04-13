@@ -4,10 +4,13 @@ import { createCliAuth } from "@logto-io/cli-auth";
 const auth = createCliAuth({
   strategy: "client-credentials",
   provider: {
-    tokenEndpoint: process.env.CLIENT_CREDENTIALS_TOKEN_ENDPOINT!,
-    clientId: process.env.CLIENT_CREDENTIALS_CLIENT_ID!,
-    clientSecret: process.env.CLIENT_CREDENTIALS_CLIENT_SECRET!,
+    type: "oidc",
+    metadata: {
+      tokenEndpoint: process.env.CLIENT_CREDENTIALS_TOKEN_ENDPOINT!,
+    },
   },
+  clientId: process.env.CLIENT_CREDENTIALS_CLIENT_ID!,
+  clientSecret: process.env.CLIENT_CREDENTIALS_CLIENT_SECRET!,
   storage: {
     load: async () => undefined,
     save: async (data) => {

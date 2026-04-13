@@ -1,6 +1,9 @@
+import type { ProviderConfig } from "./config.js";
 import type { Storage, TokenResponse } from "./types.js";
 
 export type BaseAuthConfig<TStrategy extends string> = {
+  provider: ProviderConfig;
+  clientId: string;
   storage: Storage;
   strategy: TStrategy;
   tokenRefreshThreshold?: number;
@@ -14,6 +17,8 @@ export abstract class BaseAuth<TStrategy extends string> {
   private refreshToken: string | undefined;
   private expiresAt: number | undefined;
 
+  protected readonly provider: ProviderConfig;
+  protected readonly clientId: string;
   protected readonly storage: Storage;
   readonly strategy: TStrategy;
   protected readonly tokenRefreshThreshold?: number;
@@ -22,6 +27,8 @@ export abstract class BaseAuth<TStrategy extends string> {
   protected readonly extraParams?: Record<string, string>;
 
   constructor(config: BaseAuthConfig<TStrategy>) {
+    this.provider = config.provider;
+    this.clientId = config.clientId;
     this.storage = config.storage;
     this.strategy = config.strategy;
     this.tokenRefreshThreshold = config.tokenRefreshThreshold;

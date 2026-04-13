@@ -8,11 +8,31 @@ import { ClientCredentialsAuth } from "./strategies/client-credentials.js";
 import { TokenExchangeAuth } from "./strategies/token-exchange.js";
 
 export type { Storage, TokenResponse } from "./types.js";
+export type {
+  ProviderType,
+  ProviderMetadata,
+  ProviderConfig,
+  BaseConfig,
+  ClientCredentialsConfig,
+  DeviceCodeConfig,
+  AuthorizationCodeConfig,
+  TokenExchangeConfig,
+} from "./config.js";
+export {
+  providerTypeSchema,
+  providerMetadataSchema,
+  providerConfigSchema,
+  baseConfigSchema,
+  clientCredentialsConfigSchema,
+  deviceCodeConfigSchema,
+  authorizationCodeConfigSchema,
+  tokenExchangeConfigSchema,
+} from "./config.js";
 export { BaseAuth } from "./base-auth.js";
-export { DeviceCodeAuth, type DeviceCodeConfig } from "./strategies/device-code.js";
-export { AuthorizationCodeAuth, type AuthorizationCodeConfig } from "./strategies/authorization-code.js";
-export { ClientCredentialsAuth, type ClientCredentialsConfig } from "./strategies/client-credentials.js";
-export { TokenExchangeAuth, type TokenExchangeConfig } from "./strategies/token-exchange.js";
+export { DeviceCodeAuth } from "./strategies/device-code.js";
+export { AuthorizationCodeAuth } from "./strategies/authorization-code.js";
+export { ClientCredentialsAuth } from "./strategies/client-credentials.js";
+export { TokenExchangeAuth } from "./strategies/token-exchange.js";
 
 export type CliAuthConfig =
   | DeviceCodeStrategy["config"]

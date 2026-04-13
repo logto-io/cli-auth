@@ -35,11 +35,9 @@ function createTestAuth(overrides: Record<string, unknown> = {}) {
   const stored: Record<string, unknown> = {};
   return createCliAuth({
     strategy: "client-credentials",
-    provider: {
-      tokenEndpoint,
-      clientId: "my-client",
-      clientSecret: "my-secret",
-    },
+    provider: { type: "oidc", metadata: { tokenEndpoint } },
+    clientId: "my-client",
+    clientSecret: "my-secret",
     storage: {
       load: async () => stored.credential,
       save: async (credential: unknown) => {
@@ -99,12 +97,7 @@ describe("client-credentials", () => {
     it("sends Basic Auth header with base64(clientId:clientSecret)", async () => {
       const { getHeaders } = useCaptureTokenEndpoint();
       const auth = createTestAuth({
-        provider: {
-          tokenEndpoint,
-          clientId: "my-client",
-          clientSecret: "my-secret",
-          tokenEndpointAuthMethod: "client_secret_basic",
-        },
+        tokenEndpointAuthMethod: "client_secret_basic",
       });
       await auth.login();
       const expected = `Basic ${btoa("my-client:my-secret")}`;
@@ -114,12 +107,7 @@ describe("client-credentials", () => {
     it("does not include client_id or client_secret in request body", async () => {
       const { getBody } = useCaptureTokenEndpoint();
       const auth = createTestAuth({
-        provider: {
-          tokenEndpoint,
-          clientId: "my-client",
-          clientSecret: "my-secret",
-          tokenEndpointAuthMethod: "client_secret_basic",
-        },
+        tokenEndpointAuthMethod: "client_secret_basic",
       });
       await auth.login();
       expect(getBody().has("client_id")).toBe(false);

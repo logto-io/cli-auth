@@ -5,10 +5,13 @@ import { spawn } from "node:child_process";
 const auth = createCliAuth({
   strategy: "authorization-code",
   provider: {
-    authorizationEndpoint: process.env.AUTH_CODE_AUTHORIZATION_ENDPOINT!,
-    tokenEndpoint: process.env.AUTH_CODE_TOKEN_ENDPOINT!,
-    clientId: process.env.AUTH_CODE_CLIENT_ID!,
+    type: "oidc",
+    metadata: {
+      authorizationEndpoint: process.env.AUTH_CODE_AUTHORIZATION_ENDPOINT!,
+      tokenEndpoint: process.env.AUTH_CODE_TOKEN_ENDPOINT!,
+    },
   },
+  clientId: process.env.AUTH_CODE_CLIENT_ID!,
   storage: {
     load: async () => undefined,
     save: async (data) => {

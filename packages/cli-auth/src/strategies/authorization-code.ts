@@ -1,42 +1,30 @@
-import type { Storage } from "../types.js";
+import type { AuthorizationCodeConfig } from "../config.js";
 import { BaseAuth, refreshTokenGrant, fetchTokenResponse } from "../base-auth.js";
-
-export type AuthorizationCodeConfig = {
-  strategy: "authorization-code";
-  provider: {
-    authorizationEndpoint: string;
-    tokenEndpoint: string;
-    clientId: string;
-  };
-  storage: Storage;
-  resource?: string;
-  scope?: string;
-  extraParams?: Record<string, string>;
-  callbackPort?: number;
-  tokenRefreshThreshold?: number;
-};
 
 export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth: AuthorizationCodeAuth };
 
 export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
-  private readonly provider: AuthorizationCodeConfig["provider"];
   private readonly callbackPort?: number;
 
   constructor(config: AuthorizationCodeConfig) {
-    const { storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
-    super({ storage, strategy: "authorization-code", tokenRefreshThreshold, resource, scope, extraParams });
-    this.provider = config.provider;
+    const { provider, clientId, storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
+    super({ provider, clientId, storage, strategy: "authorization-code", tokenRefreshThreshold, resource, scope, extraParams });
     this.callbackPort = config.callbackPort;
   }
 
   protected async onRefresh(currentRefreshToken?: string) {
     if (!currentRefreshToken) return undefined;
-    return refreshTokenGrant(this.provider.tokenEndpoint, this.provider.clientId, currentRefreshToken);
+    return refreshTokenGrant(this.provider.metadata.tokenEndpoint, this.clientId, currentRefreshToken);
   }
 
   async login(options: {
     onAuthorization: (url: string) => void;
   }) {
+    const { authorizationEndpoint } = this.provider.metadata;
+    if (!authorizationEndpoint) {
+      throw new Error("authorizationEndpoint is required for authorization-code strategy");
+    }
+
     const { randomBytes, createHash } = await import("node:crypto");
     const { createServer } = await import("node:http");
 
@@ -69,9 +57,9 @@ export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
     const redirectUri = `http://127.0.0.1:${port}/callback`;
 
     // Build authorization URL
-    const authUrl = new URL(this.provider.authorizationEndpoint);
+    const authUrl = new URL(authorizationEndpoint);
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", this.provider.clientId);
+    authUrl.searchParams.set("client_id", this.clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("code_challenge", codeChallenge);
     authUrl.searchParams.set("code_challenge_method", "S256");
@@ -140,14 +128,14 @@ export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
       grant_type: "authorization_code",
       code,
       code_verifier: codeVerifier,
-      client_id: this.provider.clientId,
+      client_id: this.clientId,
       redirect_uri: redirectUri,
     });
     if (this.resource) {
       tokenBody.set("resource", this.resource);
     }
 
-    const data = await fetchTokenResponse(this.provider.tokenEndpoint, tokenBody);
+    const data = await fetchTokenResponse(this.provider.metadata.tokenEndpoint, tokenBody);
     await this.applyTokenResponse(data);
   }
 }
