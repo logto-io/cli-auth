@@ -1,67 +1,84 @@
 import type { TokenExchangeConfig } from "../config.js";
-import { BaseAuth, fetchTokenResponse, refreshTokenGrant } from "../base-auth.js";
+import { TokenManager } from "../token-manager.js";
+import { fetchTokenResponse, refreshTokenGrant } from "../utils.js";
 
 export type TokenExchangeStrategy = { config: TokenExchangeConfig; auth: TokenExchangeAuth };
 
-export class TokenExchangeAuth extends BaseAuth<"token-exchange"> {
-  private readonly subjectToken: string;
-  private readonly subjectTokenType: string;
-  private readonly actorToken?: string;
-  private readonly actorTokenType?: string;
-  private readonly clientSecret?: string;
-  private readonly tokenEndpointAuthMethod: TokenExchangeConfig["tokenEndpointAuthMethod"];
+export class TokenExchangeAuth {
+  private readonly config: TokenExchangeConfig;
+  private readonly tokenManager: TokenManager;
+
+  readonly strategy = "token-exchange" as const;
 
   constructor(config: TokenExchangeConfig) {
-    const { provider, clientId, storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
-    super({ provider, clientId, storage, strategy: "token-exchange", tokenRefreshThreshold, resource, scope, extraParams });
-    this.subjectToken = config.subjectToken;
-    this.subjectTokenType = config.subjectTokenType;
-    this.actorToken = config.actorToken;
-    this.actorTokenType = config.actorTokenType;
-    this.clientSecret = config.clientSecret;
-    this.tokenEndpointAuthMethod = config.tokenEndpointAuthMethod;
+    this.config = config;
+    this.tokenManager = new TokenManager({
+      storage: config.storage,
+      tokenRefreshThreshold: config.tokenRefreshThreshold,
+      refresh: (currentRefreshToken) => this.onRefresh(currentRefreshToken),
+    });
   }
 
-  protected async onRefresh(currentRefreshToken?: string) {
+  private async onRefresh(currentRefreshToken?: string) {
     if (currentRefreshToken) {
-      return refreshTokenGrant(this.provider.metadata.tokenEndpoint, this.clientId, currentRefreshToken);
+      return refreshTokenGrant(this.config.provider.metadata.tokenEndpoint, this.config.clientId, currentRefreshToken);
     }
     return this.exchangeToken();
   }
 
   private async exchangeToken() {
+    const { clientId, clientSecret, tokenEndpointAuthMethod, subjectToken, subjectTokenType, actorToken, actorTokenType, provider, resource, scope, extraParams } = this.config;
+
     const body = new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
-      subject_token: this.subjectToken,
-      subject_token_type: this.subjectTokenType,
+      subject_token: subjectToken,
+      subject_token_type: subjectTokenType,
     });
 
     const extraHeaders: Record<string, string> = {};
-    const authMethod = this.tokenEndpointAuthMethod ?? "client_secret_post";
+    const authMethod = tokenEndpointAuthMethod ?? "client_secret_post";
 
-    if (this.clientSecret && authMethod === "client_secret_basic") {
+    if (clientSecret && authMethod === "client_secret_basic") {
       extraHeaders["Authorization"] =
-        `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`;
-    } else if (this.clientSecret) {
-      body.set("client_id", this.clientId);
-      body.set("client_secret", this.clientSecret);
+        `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+    } else if (clientSecret) {
+      body.set("client_id", clientId);
+      body.set("client_secret", clientSecret);
     } else {
-      body.set("client_id", this.clientId);
+      body.set("client_id", clientId);
     }
 
-    if (this.actorToken) {
-      body.set("actor_token", this.actorToken);
-      if (this.actorTokenType) {
-        body.set("actor_token_type", this.actorTokenType);
+    if (actorToken) {
+      body.set("actor_token", actorToken);
+      if (actorTokenType) {
+        body.set("actor_token_type", actorTokenType);
       }
     }
 
-    this.applyOptionalParams(body);
+    if (resource) body.set("resource", resource);
+    if (scope) body.set("scope", scope);
+    if (extraParams) {
+      for (const [key, value] of Object.entries(extraParams)) {
+        body.set(key, value);
+      }
+    }
 
-    return fetchTokenResponse(this.provider.metadata.tokenEndpoint, body, extraHeaders);
+    return fetchTokenResponse(provider.metadata.tokenEndpoint, body, extraHeaders);
   }
 
   async login() {
-    await this.applyTokenResponse(await this.exchangeToken());
+    await this.tokenManager.save(await this.exchangeToken());
+  }
+
+  async getToken(): Promise<string> {
+    return this.tokenManager.getToken();
+  }
+
+  async logout(): Promise<void> {
+    return this.tokenManager.clear();
+  }
+
+  async status(): Promise<{ authenticated: boolean; strategy: "token-exchange" }> {
+    return { authenticated: this.tokenManager.hasToken, strategy: this.strategy };
   }
 }

@@ -1,43 +1,63 @@
 import type { ClientCredentialsConfig } from "../config.js";
 import type { TokenResponse } from "../types.js";
-import { BaseAuth, fetchTokenResponse } from "../base-auth.js";
+import { TokenManager } from "../token-manager.js";
+import { fetchTokenResponse } from "../utils.js";
 
 export type ClientCredentialsStrategy = { config: ClientCredentialsConfig; auth: ClientCredentialsAuth };
 
-export class ClientCredentialsAuth extends BaseAuth<"client-credentials"> {
-  private readonly clientSecret: string;
-  private readonly tokenEndpointAuthMethod: ClientCredentialsConfig["tokenEndpointAuthMethod"];
+export class ClientCredentialsAuth {
+  private readonly config: ClientCredentialsConfig;
+  private readonly tokenManager: TokenManager;
+
+  readonly strategy = "client-credentials" as const;
 
   constructor(config: ClientCredentialsConfig) {
-    const { provider, clientId, storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
-    super({ provider, clientId, storage, strategy: "client-credentials", tokenRefreshThreshold, resource, scope, extraParams });
-    this.clientSecret = config.clientSecret;
-    this.tokenEndpointAuthMethod = config.tokenEndpointAuthMethod;
-  }
-
-  protected async onRefresh() {
-    return this.fetchToken();
+    this.config = config;
+    this.tokenManager = new TokenManager({
+      storage: config.storage,
+      tokenRefreshThreshold: config.tokenRefreshThreshold,
+      refresh: () => this.fetchToken(),
+    });
   }
 
   private async fetchToken(): Promise<TokenResponse> {
-    const authMethod = this.tokenEndpointAuthMethod ?? "client_secret_post";
+    const { clientId, clientSecret, tokenEndpointAuthMethod, provider, resource, scope, extraParams } = this.config;
+    const authMethod = tokenEndpointAuthMethod ?? "client_secret_post";
     const body = new URLSearchParams({ grant_type: "client_credentials" });
     const extraHeaders: Record<string, string> = {};
 
     if (authMethod === "client_secret_basic") {
       extraHeaders["Authorization"] =
-        `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`;
+        `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
     } else {
-      body.set("client_id", this.clientId);
-      body.set("client_secret", this.clientSecret);
+      body.set("client_id", clientId);
+      body.set("client_secret", clientSecret);
     }
 
-    this.applyOptionalParams(body);
+    if (resource) body.set("resource", resource);
+    if (scope) body.set("scope", scope);
+    if (extraParams) {
+      for (const [key, value] of Object.entries(extraParams)) {
+        body.set(key, value);
+      }
+    }
 
-    return fetchTokenResponse(this.provider.metadata.tokenEndpoint, body, extraHeaders);
+    return fetchTokenResponse(provider.metadata.tokenEndpoint, body, extraHeaders);
   }
 
   async login() {
-    await this.applyTokenResponse(await this.fetchToken());
+    await this.tokenManager.save(await this.fetchToken());
+  }
+
+  async getToken(): Promise<string> {
+    return this.tokenManager.getToken();
+  }
+
+  async logout(): Promise<void> {
+    return this.tokenManager.clear();
+  }
+
+  async status(): Promise<{ authenticated: boolean; strategy: "client-credentials" }> {
+    return { authenticated: this.tokenManager.hasToken, strategy: this.strategy };
   }
 }

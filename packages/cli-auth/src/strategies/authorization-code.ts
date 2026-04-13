@@ -1,26 +1,32 @@
 import type { AuthorizationCodeConfig } from "../config.js";
-import { BaseAuth, refreshTokenGrant, fetchTokenResponse } from "../base-auth.js";
+import { TokenManager } from "../token-manager.js";
+import { fetchTokenResponse, refreshTokenGrant } from "../utils.js";
 
 export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth: AuthorizationCodeAuth };
 
-export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
-  private readonly callbackPort?: number;
+export class AuthorizationCodeAuth {
+  private readonly config: AuthorizationCodeConfig;
+  private readonly tokenManager: TokenManager;
+
+  readonly strategy = "authorization-code" as const;
 
   constructor(config: AuthorizationCodeConfig) {
-    const { provider, clientId, storage, tokenRefreshThreshold, resource, scope, extraParams } = config;
-    super({ provider, clientId, storage, strategy: "authorization-code", tokenRefreshThreshold, resource, scope, extraParams });
-    this.callbackPort = config.callbackPort;
-  }
-
-  protected async onRefresh(currentRefreshToken?: string) {
-    if (!currentRefreshToken) return undefined;
-    return refreshTokenGrant(this.provider.metadata.tokenEndpoint, this.clientId, currentRefreshToken);
+    this.config = config;
+    this.tokenManager = new TokenManager({
+      storage: config.storage,
+      tokenRefreshThreshold: config.tokenRefreshThreshold,
+      refresh: (currentRefreshToken) => {
+        if (!currentRefreshToken) return Promise.resolve(undefined);
+        return refreshTokenGrant(config.provider.metadata.tokenEndpoint, config.clientId, currentRefreshToken);
+      },
+    });
   }
 
   async login(options: {
     onAuthorization: (url: string) => void;
   }) {
-    const { authorizationEndpoint } = this.provider.metadata;
+    const { clientId, provider, scope, extraParams, resource, callbackPort } = this.config;
+    const { authorizationEndpoint } = provider.metadata;
     if (!authorizationEndpoint) {
       throw new Error("authorizationEndpoint is required for authorization-code strategy");
     }
@@ -44,7 +50,7 @@ export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
       (resolve, reject) => {
         callbackServer.on("error", reject);
         callbackServer.listen(
-          this.callbackPort ?? 0,
+          callbackPort ?? 0,
           "127.0.0.1",
           () => {
             const addr = callbackServer.address() as { port: number };
@@ -59,16 +65,16 @@ export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
     // Build authorization URL
     const authUrl = new URL(authorizationEndpoint);
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", this.clientId);
+    authUrl.searchParams.set("client_id", clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("code_challenge", codeChallenge);
     authUrl.searchParams.set("code_challenge_method", "S256");
     authUrl.searchParams.set("state", state);
-    if (this.scope) {
-      authUrl.searchParams.set("scope", this.scope);
+    if (scope) {
+      authUrl.searchParams.set("scope", scope);
     }
-    if (this.extraParams) {
-      for (const [key, value] of Object.entries(this.extraParams)) {
+    if (extraParams) {
+      for (const [key, value] of Object.entries(extraParams)) {
         authUrl.searchParams.set(key, value);
       }
     }
@@ -128,14 +134,26 @@ export class AuthorizationCodeAuth extends BaseAuth<"authorization-code"> {
       grant_type: "authorization_code",
       code,
       code_verifier: codeVerifier,
-      client_id: this.clientId,
+      client_id: clientId,
       redirect_uri: redirectUri,
     });
-    if (this.resource) {
-      tokenBody.set("resource", this.resource);
+    if (resource) {
+      tokenBody.set("resource", resource);
     }
 
-    const data = await fetchTokenResponse(this.provider.metadata.tokenEndpoint, tokenBody);
-    await this.applyTokenResponse(data);
+    const data = await fetchTokenResponse(provider.metadata.tokenEndpoint, tokenBody);
+    await this.tokenManager.save(data);
+  }
+
+  async getToken(): Promise<string> {
+    return this.tokenManager.getToken();
+  }
+
+  async logout(): Promise<void> {
+    return this.tokenManager.clear();
+  }
+
+  async status(): Promise<{ authenticated: boolean; strategy: "authorization-code" }> {
+    return { authenticated: this.tokenManager.hasToken, strategy: this.strategy };
   }
 }

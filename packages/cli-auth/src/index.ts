@@ -28,7 +28,9 @@ export {
   authorizationCodeConfigSchema,
   tokenExchangeConfigSchema,
 } from "./config.js";
-export { BaseAuth } from "./base-auth.js";
+export { TokenManager } from "./token-manager.js";
+export type { TokenManagerConfig } from "./token-manager.js";
+export { fetchTokenResponse, refreshTokenGrant } from "./utils.js";
 export { DeviceCodeAuth } from "./strategies/device-code.js";
 export { AuthorizationCodeAuth } from "./strategies/authorization-code.js";
 export { ClientCredentialsAuth } from "./strategies/client-credentials.js";
