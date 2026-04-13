@@ -12,7 +12,7 @@ export { BaseAuth } from "./base-auth.js";
 export { DeviceCodeAuth, type DeviceCodeConfig } from "./strategies/device-code.js";
 export { AuthorizationCodeAuth, type AuthorizationCodeConfig } from "./strategies/authorization-code.js";
 export { ClientCredentialsAuth, type ClientCredentialsConfig } from "./strategies/client-credentials.js";
-export { TokenExchangeAuth, type TokenExchangeConfig, tokenTypeIdentifiers } from "./strategies/token-exchange.js";
+export { TokenExchangeAuth, type TokenExchangeConfig } from "./strategies/token-exchange.js";
 
 export type CliAuthConfig =
   | DeviceCodeStrategy["config"]

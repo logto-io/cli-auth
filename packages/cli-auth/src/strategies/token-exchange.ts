@@ -1,15 +1,6 @@
 import type { Storage } from "../types.js";
 import { BaseAuth, fetchTokenResponse, refreshTokenGrant } from "../base-auth.js";
 
-export const tokenTypeIdentifiers = {
-  accessToken: "urn:ietf:params:oauth:token-type:access_token",
-  refreshToken: "urn:ietf:params:oauth:token-type:refresh_token",
-  idToken: "urn:ietf:params:oauth:token-type:id_token",
-  saml1: "urn:ietf:params:oauth:token-type:saml1",
-  saml2: "urn:ietf:params:oauth:token-type:saml2",
-  jwt: "urn:ietf:params:oauth:token-type:jwt",
-} as const;
-
 export type TokenExchangeConfig = {
   strategy: "token-exchange";
   provider: {
@@ -49,11 +40,13 @@ export class TokenExchangeAuth extends BaseAuth<"token-exchange"> {
   }
 
   protected async onRefresh(currentRefreshToken?: string) {
-    if (!currentRefreshToken) return undefined;
-    return refreshTokenGrant(this.provider.tokenEndpoint, this.provider.clientId, currentRefreshToken);
+    if (currentRefreshToken) {
+      return refreshTokenGrant(this.provider.tokenEndpoint, this.provider.clientId, currentRefreshToken);
+    }
+    return this.exchangeToken();
   }
 
-  async login() {
+  private async exchangeToken() {
     const body = new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
       subject_token: this.subjectToken,
@@ -82,7 +75,10 @@ export class TokenExchangeAuth extends BaseAuth<"token-exchange"> {
 
     this.applyOptionalParams(body);
 
-    const data = await fetchTokenResponse(this.provider.tokenEndpoint, body, extraHeaders);
-    await this.applyTokenResponse(data);
+    return fetchTokenResponse(this.provider.tokenEndpoint, body, extraHeaders);
+  }
+
+  async login() {
+    await this.applyTokenResponse(await this.exchangeToken());
   }
 }

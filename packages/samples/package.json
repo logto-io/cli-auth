@@ -6,7 +6,8 @@
   "scripts": {
     "client-credentials": "tsx client-credentials.ts",
     "authorization-code": "tsx authorization-code.ts",
-    "device-code": "tsx device-code.ts"
+    "device-code": "tsx device-code.ts",
+    "token-exchange": "tsx token-exchange.ts"
   },
   "dependencies": {
     "@logto-io/cli-auth": "workspace:*",

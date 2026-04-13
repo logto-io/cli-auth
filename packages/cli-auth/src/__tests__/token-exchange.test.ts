@@ -177,7 +177,7 @@ describe("token-exchange", () => {
   });
 
   describe("getToken — refresh", () => {
-    it("refreshes via refresh_token grant when token expires", async () => {
+    it("refreshes via refresh_token grant when token expires and refresh token is available", async () => {
       server.use(
         http.post(tokenEndpoint, async ({ request }) => {
           const body = await request.text();
@@ -219,6 +219,33 @@ describe("token-exchange", () => {
 
       vi.advanceTimersByTime(3601 * 1000);
       expect(await auth.getToken()).toBe("refreshed-token");
+    });
+
+    it("re-exchanges subject token when token expires and no refresh token", async () => {
+      let callCount = 0;
+      server.use(
+        http.post(tokenEndpoint, async ({ request }) => {
+          callCount++;
+          const body = await request.text();
+          const params = new URLSearchParams(body);
+          // Both calls should be token-exchange, not refresh_token
+          expect(params.get("grant_type")).toBe(
+            "urn:ietf:params:oauth:grant-type:token-exchange"
+          );
+          expect(params.get("subject_token")).toBe("pat_abc123");
+          return HttpResponse.json({
+            access_token: `token-${callCount}`,
+            token_type: "Bearer",
+            expires_in: callCount === 1 ? 0 : 3600,
+          });
+        })
+      );
+
+      const auth = createTestAuth();
+      await auth.login();
+      const token = await auth.getToken();
+      expect(token).toBe("token-2");
+      expect(callCount).toBe(2);
     });
   });
 });
