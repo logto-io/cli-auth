@@ -1,14 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { TokenManager } from "../token-manager.js";
-import type { Storage, TokenResponse } from "../types.js";
-
-function createMockStorage(): Storage<TokenResponse> {
-  return {
-    load: vi.fn<() => Promise<TokenResponse | undefined>>().mockResolvedValue(undefined),
-    save: vi.fn<(credential: TokenResponse) => Promise<void>>().mockResolvedValue(undefined),
-    clear: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-  };
-}
+import { memoryStorage } from "../storage/memory.js";
+import type { TokenResponse } from "../types.js";
 
 const sampleToken: TokenResponse = {
   access_token: "access-1",
@@ -24,19 +17,19 @@ describe("TokenManager", () => {
 
   describe("getToken", () => {
     it("throws when no token available", async () => {
-      const manager = new TokenManager({ storage: createMockStorage() });
+      const manager = new TokenManager({ storage: memoryStorage() });
       await expect(manager.getToken()).rejects.toThrow("No token available.");
     });
 
     it("returns access token after save", async () => {
-      const manager = new TokenManager({ storage: createMockStorage() });
+      const manager = new TokenManager({ storage: memoryStorage() });
       await manager.save(sampleToken);
       expect(await manager.getToken()).toBe("access-1");
     });
 
     it("caches token — no refresh when not expired", async () => {
       const refresh = vi.fn<() => Promise<TokenResponse | undefined>>();
-      const manager = new TokenManager({ storage: createMockStorage(), refresh });
+      const manager = new TokenManager({ storage: memoryStorage(), refresh });
       await manager.save(sampleToken);
 
       await manager.getToken();
@@ -55,7 +48,7 @@ describe("TokenManager", () => {
         token_type: "Bearer",
         expires_in: 3600,
       });
-      const manager = new TokenManager({ storage: createMockStorage(), refresh });
+      const manager = new TokenManager({ storage: memoryStorage(), refresh });
       await manager.save(sampleToken);
 
       vi.advanceTimersByTime(3601 * 1000);
@@ -71,7 +64,7 @@ describe("TokenManager", () => {
         token_type: "Bearer",
         expires_in: 3600,
       });
-      const manager = new TokenManager({ storage: createMockStorage(), refresh });
+      const manager = new TokenManager({ storage: memoryStorage(), refresh });
       await manager.save(sampleToken);
 
       vi.advanceTimersByTime(3601 * 1000);
@@ -83,7 +76,7 @@ describe("TokenManager", () => {
     it("does NOT call refresh when token is still valid", async () => {
       vi.useFakeTimers();
       const refresh = vi.fn<() => Promise<TokenResponse | undefined>>();
-      const manager = new TokenManager({ storage: createMockStorage(), refresh });
+      const manager = new TokenManager({ storage: memoryStorage(), refresh });
       await manager.save(sampleToken);
 
       vi.advanceTimersByTime(1800 * 1000);
@@ -101,7 +94,7 @@ describe("TokenManager", () => {
         token_type: "Bearer",
         expires_in: 3600,
       });
-      const manager = new TokenManager({ storage: createMockStorage(), refresh });
+      const manager = new TokenManager({ storage: memoryStorage(), refresh });
       await manager.save(sampleToken);
 
       // At 3299s — outside the 300s default threshold, should NOT refresh
@@ -123,7 +116,7 @@ describe("TokenManager", () => {
         expires_in: 3600,
       });
       const manager = new TokenManager({
-        storage: createMockStorage(),
+        storage: memoryStorage(),
         refresh,
         tokenRefreshThreshold: 600,
       });
@@ -141,7 +134,7 @@ describe("TokenManager", () => {
     it("throws when token is expired and refresh returns undefined", async () => {
       vi.useFakeTimers();
       const refresh = vi.fn<() => Promise<TokenResponse | undefined>>().mockResolvedValue(undefined);
-      const manager = new TokenManager({ storage: createMockStorage(), refresh });
+      const manager = new TokenManager({ storage: memoryStorage(), refresh });
       await manager.save(sampleToken);
 
       vi.advanceTimersByTime(3601 * 1000);
@@ -152,7 +145,7 @@ describe("TokenManager", () => {
 
     it("throws when token is expired and no refresh callback provided", async () => {
       vi.useFakeTimers();
-      const manager = new TokenManager({ storage: createMockStorage() });
+      const manager = new TokenManager({ storage: memoryStorage() });
       await manager.save(sampleToken);
 
       vi.advanceTimersByTime(3601 * 1000);
@@ -162,46 +155,45 @@ describe("TokenManager", () => {
   });
 
   describe("save", () => {
-    it("saves to storage", async () => {
-      const storage = createMockStorage();
+    it("persists credential to storage", async () => {
+      const storage = memoryStorage();
       const manager = new TokenManager({ storage });
       await manager.save(sampleToken);
-      expect(storage.save).toHaveBeenCalledOnce();
-      expect(storage.save).toHaveBeenCalledWith(sampleToken);
+      expect(await storage.load()).toEqual(sampleToken);
     });
   });
 
   describe("clear", () => {
     it("clears state — getToken throws after clear", async () => {
-      const manager = new TokenManager({ storage: createMockStorage() });
+      const manager = new TokenManager({ storage: memoryStorage() });
       await manager.save(sampleToken);
       await manager.clear();
       await expect(manager.getToken()).rejects.toThrow("No token available.");
     });
 
-    it("calls storage.clear", async () => {
-      const storage = createMockStorage();
+    it("clears storage", async () => {
+      const storage = memoryStorage();
       const manager = new TokenManager({ storage });
       await manager.save(sampleToken);
       await manager.clear();
-      expect(storage.clear).toHaveBeenCalledOnce();
+      expect(await storage.load()).toBeUndefined();
     });
   });
 
   describe("hasToken", () => {
     it("returns false before save", () => {
-      const manager = new TokenManager({ storage: createMockStorage() });
+      const manager = new TokenManager({ storage: memoryStorage() });
       expect(manager.hasToken).toBe(false);
     });
 
     it("returns true after save", async () => {
-      const manager = new TokenManager({ storage: createMockStorage() });
+      const manager = new TokenManager({ storage: memoryStorage() });
       await manager.save(sampleToken);
       expect(manager.hasToken).toBe(true);
     });
 
     it("returns false after clear", async () => {
-      const manager = new TokenManager({ storage: createMockStorage() });
+      const manager = new TokenManager({ storage: memoryStorage() });
       await manager.save(sampleToken);
       await manager.clear();
       expect(manager.hasToken).toBe(false);
