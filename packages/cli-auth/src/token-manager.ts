@@ -36,16 +36,31 @@ export class TokenManager<T extends TokenResponse = TokenResponse> {
     if (!this.accessToken || this.expiresAt === undefined) {
       throw new Error("No token available.");
     }
-    const threshold = (this.tokenRefreshThreshold ?? 300) * 1000;
-    if (Date.now() >= this.expiresAt - threshold) {
-      const data = await this.refresh?.(this.refreshToken);
-      if (data) {
-        await this.save(data);
-      } else {
-        throw new Error("Token expired and cannot be refreshed.");
+    if (this.isExpired()) {
+      const release = await this.storage.lock?.();
+      try {
+        if (this.isExpired()) {
+          await this.doRefresh();
+        }
+      } finally {
+        await release?.();
       }
     }
     return this.accessToken;
+  }
+
+  private isExpired(): boolean {
+    const threshold = (this.tokenRefreshThreshold ?? 300) * 1000;
+    return this.expiresAt !== undefined && Date.now() >= this.expiresAt - threshold;
+  }
+
+  private async doRefresh(): Promise<void> {
+    const data = await this.refresh?.(this.refreshToken);
+    if (data) {
+      await this.save(data);
+    } else {
+      throw new Error("Token expired and cannot be refreshed.");
+    }
   }
 
   async clear(): Promise<void> {

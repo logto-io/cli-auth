@@ -31,6 +31,7 @@ export {
 export { TokenManager } from "./token-manager.js";
 export { memoryStorage } from "./storage/memory.js";
 export { fileStorage } from "./storage/file.js";
+export { fileLock } from "./storage/file-lock.js";
 export type { TokenManagerConfig } from "./token-manager.js";
 export { fetchTokenResponse, refreshTokenGrant } from "./utils.js";
 export { DeviceCodeAuth } from "./strategies/device-code.js";

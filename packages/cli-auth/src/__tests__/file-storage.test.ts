@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileStorage } from "../storage/file.js";
+import { fileLock } from "../storage/file-lock.js";
 
 describe("fileStorage", () => {
   let dir: string;
@@ -64,5 +65,43 @@ describe("fileStorage", () => {
   it("clear does not throw when file does not exist", async () => {
     const storage = fileStorage({ dir });
     await expect(storage.clear()).resolves.toBeUndefined();
+  });
+
+  describe("withLock", () => {
+    it("attaches lock to storage via fluent API", async () => {
+      const lockPath = join(dir, "test.lock");
+      const storage = fileStorage({ dir }).withLock(fileLock({ lockPath }));
+
+      expect(storage.lock).toBeDefined();
+
+      // Should still work as normal storage
+      const credential = { access_token: "tok", token_type: "Bearer", expires_in: 3600 };
+      await storage.save(credential);
+      expect(await storage.load()).toEqual(credential);
+    });
+
+    it("serializes concurrent calls via lock", async () => {
+      const lockPath = join(dir, "test.lock");
+      const storage = fileStorage({ dir }).withLock(fileLock({ lockPath }));
+      const order: number[] = [];
+
+      const entered = new Promise<void>((resolve) => {
+        void (async () => {
+          const release = await storage.lock!();
+          order.push(1);
+          resolve();
+          await new Promise((r) => globalThis.setTimeout(r, 50));
+          order.push(2);
+          await release();
+        })();
+      });
+
+      await entered;
+      const release = await storage.lock!();
+      order.push(3);
+      await release();
+
+      expect(order).toEqual([1, 2, 3]);
+    });
   });
 });

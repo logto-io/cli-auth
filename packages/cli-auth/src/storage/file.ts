@@ -2,11 +2,13 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Storage, TokenResponse } from "../types.js";
 
-export function fileStorage<T = TokenResponse>(options: { dir: string }): Storage<T> {
+export function fileStorage<T = TokenResponse>(options: { dir: string }): Storage<T> & {
+  withLock(lock: () => Promise<() => Promise<void>>): Storage<T>;
+} {
   const filePath = join(options.dir, "credentials.json");
   const tmpPath = filePath + ".tmp";
 
-  return {
+  const storage: Storage<T> = {
     async load() {
       let content: string;
       try {
@@ -32,6 +34,13 @@ export function fileStorage<T = TokenResponse>(options: { dir: string }): Storag
           throw error;
         }
       }
+    },
+  };
+
+  return {
+    ...storage,
+    withLock(lock: () => Promise<() => Promise<void>>): Storage<T> {
+      return { ...storage, lock };
     },
   };
 }
