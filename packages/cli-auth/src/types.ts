@@ -2,6 +2,8 @@ export type Storage<T = TokenResponse> = {
   load: () => Promise<T | undefined>;
   save: (credential: T) => Promise<void>;
   clear: () => Promise<void>;
+  /** Acquire exclusive lock. Call the returned function to release. */
+  lock?: () => Promise<() => Promise<void>>;
 };
 
 export type TokenResponse = {

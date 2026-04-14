@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { TokenManager } from "../token-manager.js";
 import { memoryStorage } from "../storage/memory.js";
-import type { TokenResponse } from "../types.js";
+import type { Storage, TokenResponse } from "../types.js";
 
 const sampleToken: TokenResponse = {
   access_token: "access-1",
@@ -177,6 +177,63 @@ describe("TokenManager", () => {
       await manager.save(sampleToken);
       await manager.clear();
       expect(await storage.load()).toBeUndefined();
+    });
+  });
+
+  describe("lock integration", () => {
+    it("concurrent getToken calls only refresh once when storage has lock", async () => {
+      vi.useFakeTimers();
+      const refresh = vi.fn<(refreshToken?: string) => Promise<TokenResponse | undefined>>().mockResolvedValue({
+        access_token: "refreshed",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+
+      // In-process mutex: lock() acquires, returns release function
+      let pending = Promise.resolve();
+      const lock = async () => {
+        const previous = pending;
+        let release!: () => void;
+        pending = new Promise<void>((r) => {
+          release = r;
+        });
+        await previous;
+        return async () => release();
+      };
+
+      const storage: Storage<TokenResponse> = {
+        ...memoryStorage<TokenResponse>(),
+        lock,
+      };
+
+      const manager = new TokenManager({ storage, refresh });
+      await manager.save(sampleToken);
+
+      vi.advanceTimersByTime(3601 * 1000);
+
+      const [t1, t2] = await Promise.all([manager.getToken(), manager.getToken()]);
+
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(t1).toBe("refreshed");
+      expect(t2).toBe("refreshed");
+    });
+
+    it("refreshes without lock when storage does not provide it", async () => {
+      vi.useFakeTimers();
+      const refresh = vi.fn<(refreshToken?: string) => Promise<TokenResponse | undefined>>().mockResolvedValue({
+        access_token: "refreshed-no-lock",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+
+      const manager = new TokenManager({ storage: memoryStorage(), refresh });
+      await manager.save(sampleToken);
+
+      vi.advanceTimersByTime(3601 * 1000);
+
+      const token = await manager.getToken();
+      expect(token).toBe("refreshed-no-lock");
+      expect(refresh).toHaveBeenCalledOnce();
     });
   });
 

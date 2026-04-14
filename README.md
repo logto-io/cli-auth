@@ -49,13 +49,49 @@ const storage: Storage = {
 };
 ```
 
-For a quick start or testing, use an in-memory no-op storage:
+### Built-in storage
+
+**memoryStorage** — in-memory, useful for testing or short-lived processes:
 
 ```ts
-const storage = {
-  load: async () => undefined,
-  save: async () => {},
-  clear: async () => {},
+import { memoryStorage } from "@logto-io/cli-auth";
+
+const storage = memoryStorage();
+```
+
+**fileStorage** — JSON file with atomic writes and secure permissions (0o600 file, 0o700 directory):
+
+```ts
+import { fileStorage } from "@logto-io/cli-auth";
+
+const storage = fileStorage({ dir: "~/.myapp" });
+```
+
+### Cross-process locking
+
+When multiple processes share the same storage (e.g. parallel CLI invocations), concurrent token refreshes can cause conflicts. Add a `lock` to serialize refresh operations:
+
+```ts
+import { fileStorage, fileLock } from "@logto-io/cli-auth";
+
+const storage = fileStorage({ dir: "~/.myapp" })
+  .withLock(fileLock({ lockPath: "~/.myapp/.lock" }));
+```
+
+`fileLock` uses atomic file creation (`O_CREAT | O_EXCL`) to ensure only one process refreshes at a time.
+
+You can also implement a custom lock (e.g. Redis) by providing a `lock` method on any storage:
+
+```ts
+const storage: Storage = {
+  load: async () => { /* ... */ },
+  save: async (credential) => { /* ... */ },
+  clear: async () => { /* ... */ },
+  async lock() {
+    // Acquire exclusive lock, return a release function
+    await redis.set("myapp:lock", "1", "NX", "EX", 30);
+    return async () => { await redis.del("myapp:lock"); };
+  },
 };
 ```
 
