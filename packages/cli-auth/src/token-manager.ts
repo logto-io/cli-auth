@@ -1,7 +1,7 @@
 import type { Storage, TokenResponse } from "./types.js";
 
 export type TokenManagerConfig = {
-  storage: Storage;
+  storage: Storage<TokenResponse>;
   refresh?: (refreshToken?: string) => Promise<TokenResponse | undefined>;
   tokenRefreshThreshold?: number;
 };

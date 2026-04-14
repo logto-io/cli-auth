@@ -2,10 +2,10 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { TokenManager } from "../token-manager.js";
 import type { Storage, TokenResponse } from "../types.js";
 
-function createMockStorage(): Storage {
+function createMockStorage(): Storage<TokenResponse> {
   return {
-    load: vi.fn<() => Promise<unknown>>().mockResolvedValue(undefined),
-    save: vi.fn<(credential: unknown) => Promise<void>>().mockResolvedValue(undefined),
+    load: vi.fn<() => Promise<TokenResponse | undefined>>().mockResolvedValue(undefined),
+    save: vi.fn<(credential: TokenResponse) => Promise<void>>().mockResolvedValue(undefined),
     clear: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   };
 }

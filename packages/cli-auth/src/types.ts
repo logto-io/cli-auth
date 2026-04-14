@@ -1,6 +1,6 @@
-export type Storage = {
-  load: () => Promise<unknown>;
-  save: (credential: unknown) => Promise<void>;
+export type Storage<T = TokenResponse> = {
+  load: () => Promise<T | undefined>;
+  save: (credential: T) => Promise<void>;
   clear: () => Promise<void>;
 };
 
