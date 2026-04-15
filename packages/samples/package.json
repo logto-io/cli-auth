@@ -7,10 +7,12 @@
     "client-credentials": "tsx client-credentials.ts",
     "authorization-code": "tsx authorization-code.ts",
     "device-code": "tsx device-code.ts",
-    "token-exchange": "tsx token-exchange.ts"
+    "token-exchange": "tsx token-exchange.ts",
+    "keyring-storage": "tsx keyring-storage.ts"
   },
   "dependencies": {
     "@logto-io/cli-auth": "workspace:*",
+    "@napi-rs/keyring": "^1.2.0",
     "dotenv": "^17.4.1"
   },
   "devDependencies": {
