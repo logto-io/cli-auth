@@ -67,6 +67,23 @@ import { fileStorage } from "@logto-io/cli-auth";
 const storage = fileStorage({ dir: "~/.myapp" });
 ```
 
+**keyringStorage** — system keyring (macOS Keychain, Windows Credential Store, Linux Secret Service) via [`@napi-rs/keyring`](https://github.com/nicolo-ribaudo/keyring-node):
+
+```ts
+import { keyringStorage } from "@logto-io/cli-auth";
+import { Entry } from "@napi-rs/keyring";
+
+const storage = keyringStorage({
+  entry: new Entry("my-app", "tokens"),
+});
+```
+
+`@napi-rs/keyring` is an optional peer dependency — install it separately:
+
+```bash
+pnpm add @napi-rs/keyring
+```
+
 ### Cross-process locking
 
 When multiple processes share the same storage (e.g. parallel CLI invocations), concurrent token refreshes can cause conflicts. Add a `lock` to serialize refresh operations:
@@ -78,7 +95,15 @@ const storage = fileStorage({ dir: "~/.myapp" })
   .withLock(fileLock({ lockPath: "~/.myapp/.lock" }));
 ```
 
-`fileLock` uses atomic file creation (`O_CREAT | O_EXCL`) to ensure only one process refreshes at a time.
+`fileLock` uses atomic file creation (`O_CREAT | O_EXCL`) to ensure only one process refreshes at a time. This works with any storage backend, including keyringStorage:
+
+```ts
+import { keyringStorage, fileLock } from "@logto-io/cli-auth";
+import { Entry } from "@napi-rs/keyring";
+
+const storage = keyringStorage({ entry: new Entry("my-app", "tokens") })
+  .withLock(fileLock({ lockPath: "~/.myapp/.lock" }));
+```
 
 You can also implement a custom lock (e.g. Redis) by providing a `lock` method on any storage:
 
