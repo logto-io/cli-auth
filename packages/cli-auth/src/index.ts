@@ -7,7 +7,7 @@ import { AuthorizationCodeAuth } from "./strategies/authorization-code.js";
 import { ClientCredentialsAuth } from "./strategies/client-credentials.js";
 import { TokenExchangeAuth } from "./strategies/token-exchange.js";
 
-export type { Storage, TokenResponse } from "./types.js";
+export type { Storage, TokenResponse, GetTokenOptions, CachedToken, TokenSet } from "./types.js";
 export type {
   ProviderType,
   ProviderMetadata,
@@ -35,7 +35,7 @@ export { fileLock } from "./storage/file-lock.js";
 export { keyringStorage } from "./storage/keyring.js";
 export type { KeyringEntry } from "./storage/keyring.js";
 export type { TokenManagerConfig } from "./token-manager.js";
-export { fetchTokenResponse, refreshTokenGrant } from "./utils.js";
+export { fetchTokenResponse, refreshTokenGrant, buildTokenCacheKey } from "./utils.js";
 export { DeviceCodeAuth } from "./strategies/device-code.js";
 export { AuthorizationCodeAuth } from "./strategies/authorization-code.js";
 export { ClientCredentialsAuth } from "./strategies/client-credentials.js";

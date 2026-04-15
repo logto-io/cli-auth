@@ -8,6 +8,7 @@
  * in your OS credential manager (e.g. macOS Keychain Access).
  */
 import { keyringStorage } from "@logto-io/cli-auth";
+import type { TokenSet } from "@logto-io/cli-auth";
 import { Entry } from "@napi-rs/keyring";
 
 const SERVICE = "logto-cli-auth-sample";
@@ -21,33 +22,36 @@ console.log("1. Loading from keyring (should be undefined)...");
 const initial = await storage.load();
 console.log("   Result:", initial);
 
-// 2. Save a mock credential
-const mockCredential = {
-  access_token: "eyJhbGciOiJSUzI1NiJ9.mock-access-token",
-  token_type: "Bearer",
-  expires_in: 3600,
+// 2. Save a mock token set
+const mockTokenSet: TokenSet = {
   refresh_token: "mock-refresh-token",
-  scope: "openid offline_access profile",
+  tokens: {
+    "": {
+      access_token: "eyJhbGciOiJSUzI1NiJ9.mock-access-token",
+      expires_at: Date.now() + 3600 * 1000,
+      scope: "openid offline_access profile",
+    },
+  },
 };
 
-console.log("\n2. Saving credential to keyring...");
-await storage.save(mockCredential);
+console.log("\n2. Saving token set to keyring...");
+await storage.save(mockTokenSet);
 console.log("   Saved! Check your OS keyring for service:", SERVICE);
 
 // 3. Load it back
-console.log("\n3. Loading credential from keyring...");
+console.log("\n3. Loading token set from keyring...");
 const loaded = await storage.load();
 console.log("   Result:", JSON.stringify(loaded, null, 2));
 
 // 4. Verify round-trip
 const match =
   loaded !== undefined &&
-  loaded.access_token === mockCredential.access_token &&
-  loaded.refresh_token === mockCredential.refresh_token;
+  loaded.tokens[""]?.access_token === mockTokenSet.tokens[""]?.access_token &&
+  loaded.refresh_token === mockTokenSet.refresh_token;
 console.log("\n4. Round-trip match:", match ? "YES" : "NO");
 
 // 5. Clear
-console.log("\n5. Clearing credential from keyring...");
+console.log("\n5. Clearing token set from keyring...");
 await storage.clear();
 const afterClear = await storage.load();
 console.log("   After clear (should be undefined):", afterClear);

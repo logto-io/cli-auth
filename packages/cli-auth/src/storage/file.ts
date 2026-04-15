@@ -1,8 +1,8 @@
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Storage, TokenResponse } from "../types.js";
+import type { Storage, TokenSet } from "../types.js";
 
-export function fileStorage<T = TokenResponse>(options: { dir: string }): Storage<T> & {
+export function fileStorage<T = TokenSet>(options: { dir: string }): Storage<T> & {
   withLock(lock: () => Promise<() => Promise<void>>): Storage<T>;
 } {
   const filePath = join(options.dir, "credentials.json");

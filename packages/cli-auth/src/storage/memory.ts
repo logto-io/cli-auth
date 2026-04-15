@@ -1,6 +1,6 @@
-import type { Storage, TokenResponse } from "../types.js";
+import type { Storage, TokenSet } from "../types.js";
 
-export function memoryStorage<T = TokenResponse>(): Storage<T> {
+export function memoryStorage<T = TokenSet>(): Storage<T> {
   let stored: T | undefined;
   return {
     async load() {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterAll, afterEach } 
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createCliAuth } from "../index.js";
+import type { TokenSet } from "../types.js";
 
 const server = setupServer();
 
@@ -37,7 +38,7 @@ function useCaptureTokenEndpoint() {
 }
 
 function createTestAuth(overrides: Record<string, unknown> = {}) {
-  const stored: Record<string, unknown> = {};
+  let stored: TokenSet | undefined;
   return createCliAuth({
     strategy: "token-exchange",
     provider: { type: "oidc", metadata: { tokenEndpoint } },
@@ -45,12 +46,12 @@ function createTestAuth(overrides: Record<string, unknown> = {}) {
     subjectToken: "pat_abc123",
     subjectTokenType: "urn:logto:token-type:personal_access_token",
     storage: {
-      load: async () => stored.credential,
-      save: async (credential: unknown) => {
-        stored.credential = credential;
+      load: async () => stored,
+      save: async (credential: TokenSet) => {
+        stored = credential;
       },
       clear: async () => {
-        delete stored.credential;
+        stored = undefined;
       },
     },
     ...overrides,
@@ -194,15 +195,15 @@ describe("token-exchange", () => {
         })
       );
 
-      const stored: Record<string, unknown> = {};
+      let stored: TokenSet | undefined;
       const auth = createTestAuth({
         storage: {
-          load: async () => stored.credential,
-          save: async (credential: unknown) => {
-            stored.credential = credential;
+          load: async () => stored,
+          save: async (credential: TokenSet) => {
+            stored = credential;
           },
           clear: async () => {
-            delete stored.credential;
+            stored = undefined;
           },
         },
       });

@@ -1,4 +1,4 @@
-import type { Storage, TokenResponse } from "../types.js";
+import type { Storage, TokenSet } from "../types.js";
 
 export type KeyringEntry = {
   getPassword(): string | null;
@@ -6,7 +6,7 @@ export type KeyringEntry = {
   deleteCredential(): boolean;
 };
 
-export function keyringStorage<T = TokenResponse>(options: { entry: KeyringEntry }): Storage<T> & {
+export function keyringStorage<T = TokenSet>(options: { entry: KeyringEntry }): Storage<T> & {
   withLock(lock: () => Promise<() => Promise<void>>): Storage<T>;
 } {
   const { entry } = options;
