@@ -1,4 +1,5 @@
 import type { AuthorizationCodeConfig } from "../config.js";
+import type { GetTokenOptions } from "../types.js";
 import { TokenManager } from "../token-manager.js";
 import { fetchTokenResponse, refreshTokenGrant } from "../utils.js";
 
@@ -15,9 +16,9 @@ export class AuthorizationCodeAuth {
     this.tokenManager = new TokenManager({
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
-      refresh: (currentRefreshToken) => {
-        if (!currentRefreshToken) return Promise.resolve(undefined);
-        return refreshTokenGrant(config.provider.metadata.tokenEndpoint, config.clientId, currentRefreshToken);
+      refresh: (refreshToken, options) => {
+        if (!refreshToken) return Promise.resolve(undefined);
+        return refreshTokenGrant(config.provider.metadata.tokenEndpoint, config.clientId, refreshToken, options);
       },
     });
   }
@@ -145,8 +146,8 @@ export class AuthorizationCodeAuth {
     await this.tokenManager.save(data);
   }
 
-  async getToken(): Promise<string> {
-    return this.tokenManager.getToken();
+  async getToken(options?: GetTokenOptions): Promise<string> {
+    return this.tokenManager.getToken(options);
   }
 
   async logout(): Promise<void> {

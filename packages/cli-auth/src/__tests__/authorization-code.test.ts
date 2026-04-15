@@ -342,6 +342,255 @@ describe("authorization-code", () => {
       expect(await auth.getToken()).toBe("refreshed-token");
       vi.useRealTimers();
     });
+
+    it("returns resource-specific token via refresh_token and sends resource in request", async () => {
+      let refreshBody: URLSearchParams | undefined;
+      useTokenEndpoint(async ({ request }) => {
+        const body = new URLSearchParams(await request.text());
+
+        if (body.get("grant_type") === "refresh_token") {
+          refreshBody = body;
+          return HttpResponse.json({
+            access_token: `token-for-${body.get("resource")}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        }
+
+        return HttpResponse.json({
+          access_token: "initial-opaque-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "my-refresh-token",
+        });
+      });
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+
+      const token = await auth.getToken({ resource: "https://api.example.com" });
+
+      expect(token).toBe("token-for-https://api.example.com");
+      expect(refreshBody!.get("resource")).toBe("https://api.example.com");
+      expect(refreshBody!.get("grant_type")).toBe("refresh_token");
+    });
+
+    it("caches resource token — second call does not trigger extra HTTP request", async () => {
+      let refreshCallCount = 0;
+      useTokenEndpoint(async ({ request }) => {
+        const body = new URLSearchParams(await request.text());
+
+        if (body.get("grant_type") === "refresh_token") {
+          refreshCallCount++;
+          return HttpResponse.json({
+            access_token: "resource-token",
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        }
+
+        return HttpResponse.json({
+          access_token: "initial-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "refresh-1",
+        });
+      });
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+
+      await auth.getToken({ resource: "https://api.example.com" });
+      await auth.getToken({ resource: "https://api.example.com" });
+
+      expect(refreshCallCount).toBe(1);
+    });
+
+    it("returns different tokens for different resources", async () => {
+      useTokenEndpoint(async ({ request }) => {
+        const body = new URLSearchParams(await request.text());
+
+        if (body.get("grant_type") === "refresh_token") {
+          return HttpResponse.json({
+            access_token: `token-for-${body.get("resource")}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        }
+
+        return HttpResponse.json({
+          access_token: "initial-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "refresh-1",
+        });
+      });
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+
+      const tokenA = await auth.getToken({ resource: "https://api-a.example.com" });
+      const tokenB = await auth.getToken({ resource: "https://api-b.example.com" });
+
+      expect(tokenA).toBe("token-for-https://api-a.example.com");
+      expect(tokenB).toBe("token-for-https://api-b.example.com");
+    });
+
+    it("re-refreshes only the expired resource token", async () => {
+      vi.useFakeTimers();
+      let refreshCallCount = 0;
+      useTokenEndpoint(async ({ request }) => {
+        const body = new URLSearchParams(await request.text());
+
+        if (body.get("grant_type") === "refresh_token") {
+          refreshCallCount++;
+          return HttpResponse.json({
+            access_token: `token-${body.get("resource")}-${refreshCallCount}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        }
+
+        return HttpResponse.json({
+          access_token: "initial-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "refresh-1",
+        });
+      });
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+
+      // Fetch two resource tokens
+      const tokenA1 = await auth.getToken({ resource: "https://api-a.example.com" });
+      const tokenB1 = await auth.getToken({ resource: "https://api-b.example.com" });
+      expect(refreshCallCount).toBe(2);
+
+      // Expire both tokens
+      vi.advanceTimersByTime(3601 * 1000);
+
+      // Refresh resource A — should trigger one more refresh
+      const tokenA2 = await auth.getToken({ resource: "https://api-a.example.com" });
+      expect(tokenA2).not.toBe(tokenA1);
+      expect(refreshCallCount).toBe(3);
+
+      // Resource B should also be expired and trigger its own refresh
+      const tokenB2 = await auth.getToken({ resource: "https://api-b.example.com" });
+      expect(tokenB2).not.toBe(tokenB1);
+      expect(refreshCallCount).toBe(4);
+
+      vi.useRealTimers();
+    });
+
+    it("sends extraParams in refresh request and returns provider-specific token", async () => {
+      let refreshBody: URLSearchParams | undefined;
+      useTokenEndpoint(async ({ request }) => {
+        const body = new URLSearchParams(await request.text());
+
+        if (body.get("grant_type") === "refresh_token") {
+          refreshBody = body;
+          return HttpResponse.json({
+            access_token: `org-token-${body.get("organization_id")}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        }
+
+        return HttpResponse.json({
+          access_token: "initial-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "refresh-1",
+        });
+      });
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+
+      const token = await auth.getToken({
+        extraParams: { organization_id: "org_1" },
+      });
+
+      expect(token).toBe("org-token-org_1");
+      expect(refreshBody!.get("organization_id")).toBe("org_1");
+    });
+
+    it("combines resource and extraParams in refresh request", async () => {
+      let refreshBody: URLSearchParams | undefined;
+      useTokenEndpoint(async ({ request }) => {
+        const body = new URLSearchParams(await request.text());
+
+        if (body.get("grant_type") === "refresh_token") {
+          refreshBody = body;
+          return HttpResponse.json({
+            access_token: "combined-token",
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        }
+
+        return HttpResponse.json({
+          access_token: "initial-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "refresh-1",
+        });
+      });
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+
+      await auth.getToken({
+        resource: "https://api.example.com",
+        extraParams: { organization_id: "org_1" },
+      });
+
+      expect(refreshBody!.get("resource")).toBe("https://api.example.com");
+      expect(refreshBody!.get("organization_id")).toBe("org_1");
+    });
+
+    it("caches tokens separately for different extraParams", async () => {
+      let refreshCallCount = 0;
+      useTokenEndpoint(async ({ request }) => {
+        const body = new URLSearchParams(await request.text());
+
+        if (body.get("grant_type") === "refresh_token") {
+          refreshCallCount++;
+          return HttpResponse.json({
+            access_token: `token-${body.get("organization_id") ?? "none"}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        }
+
+        return HttpResponse.json({
+          access_token: "initial-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "refresh-1",
+        });
+      });
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+
+      const tokenOrg1 = await auth.getToken({
+        extraParams: { organization_id: "org_1" },
+      });
+      const tokenOrg2 = await auth.getToken({
+        extraParams: { organization_id: "org_2" },
+      });
+
+      expect(tokenOrg1).toBe("token-org_1");
+      expect(tokenOrg2).toBe("token-org_2");
+      expect(refreshCallCount).toBe(2);
+
+      // Second calls should be cached
+      await auth.getToken({ extraParams: { organization_id: "org_1" } });
+      await auth.getToken({ extraParams: { organization_id: "org_2" } });
+      expect(refreshCallCount).toBe(2);
+    });
   });
 
   describe("error handling", () => {

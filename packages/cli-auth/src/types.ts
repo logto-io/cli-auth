@@ -1,3 +1,23 @@
+export type GetTokenOptions = {
+  /** RFC 8707 resource indicator */
+  resource?: string;
+  /** Provider-specific extra parameters (e.g. organization_id) */
+  extraParams?: Record<string, string>;
+};
+
+export type CachedToken = {
+  access_token: string;
+  /** Absolute timestamp in ms */
+  expires_at: number;
+  scope?: string;
+};
+
+export type TokenSet = {
+  refresh_token?: string;
+  id_token?: string;
+  tokens: Record<string, CachedToken>;
+};
+
 export type Storage<T = TokenResponse> = {
   load: () => Promise<T | undefined>;
   save: (credential: T) => Promise<void>;

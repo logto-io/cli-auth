@@ -1,5 +1,5 @@
 import type { DeviceCodeConfig } from "../config.js";
-import type { TokenResponse } from "../types.js";
+import type { GetTokenOptions, TokenResponse } from "../types.js";
 import { TokenManager } from "../token-manager.js";
 import { refreshTokenGrant } from "../utils.js";
 
@@ -16,9 +16,9 @@ export class DeviceCodeAuth {
     this.tokenManager = new TokenManager({
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
-      refresh: (currentRefreshToken) => {
-        if (!currentRefreshToken) return Promise.resolve(undefined);
-        return refreshTokenGrant(config.provider.metadata.tokenEndpoint, config.clientId, currentRefreshToken);
+      refresh: (refreshToken, options) => {
+        if (!refreshToken) return Promise.resolve(undefined);
+        return refreshTokenGrant(config.provider.metadata.tokenEndpoint, config.clientId, refreshToken, options);
       },
     });
   }
@@ -123,8 +123,8 @@ export class DeviceCodeAuth {
     throw new Error("Device code expired");
   }
 
-  async getToken(): Promise<string> {
-    return this.tokenManager.getToken();
+  async getToken(options?: GetTokenOptions): Promise<string> {
+    return this.tokenManager.getToken(options);
   }
 
   async logout(): Promise<void> {

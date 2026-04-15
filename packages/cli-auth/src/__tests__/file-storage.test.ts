@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { fileStorage } from "../storage/file.js";
 import { fileLock } from "../storage/file-lock.js";
 
+type TestCredential = { access_token: string; token_type: string; expires_in: number };
+
 describe("fileStorage", () => {
   let dir: string;
 
@@ -17,19 +19,19 @@ describe("fileStorage", () => {
   });
 
   it("returns undefined when no file exists", async () => {
-    const storage = fileStorage({ dir });
+    const storage = fileStorage<TestCredential>({ dir });
     expect(await storage.load()).toBeUndefined();
   });
 
   it("save and load round-trips a credential", async () => {
-    const storage = fileStorage({ dir });
+    const storage = fileStorage<TestCredential>({ dir });
     const credential = { access_token: "tok", token_type: "Bearer", expires_in: 3600 };
     await storage.save(credential);
     expect(await storage.load()).toEqual(credential);
   });
 
   it("writes file with 0o600 permissions", async () => {
-    const storage = fileStorage({ dir });
+    const storage = fileStorage<TestCredential>({ dir });
     await storage.save({ access_token: "tok", token_type: "Bearer", expires_in: 3600 });
 
     const { stat } = await import("node:fs/promises");
@@ -39,7 +41,7 @@ describe("fileStorage", () => {
 
   it("creates directory with 0o700 permissions if it does not exist", async () => {
     const nestedDir = join(dir, "nested", "deep");
-    const storage = fileStorage({ dir: nestedDir });
+    const storage = fileStorage<TestCredential>({ dir: nestedDir });
     await storage.save({ access_token: "tok", token_type: "Bearer", expires_in: 3600 });
 
     const { stat } = await import("node:fs/promises");
@@ -51,38 +53,37 @@ describe("fileStorage", () => {
     const { writeFile } = await import("node:fs/promises");
     await writeFile(join(dir, "credentials.json"), "not-valid-json");
 
-    const storage = fileStorage({ dir });
+    const storage = fileStorage<TestCredential>({ dir });
     await expect(storage.load()).rejects.toThrow();
   });
 
   it("clear removes the credential file", async () => {
-    const storage = fileStorage({ dir });
+    const storage = fileStorage<TestCredential>({ dir });
     await storage.save({ access_token: "tok", token_type: "Bearer", expires_in: 3600 });
     await storage.clear();
     expect(await storage.load()).toBeUndefined();
   });
 
   it("clear does not throw when file does not exist", async () => {
-    const storage = fileStorage({ dir });
+    const storage = fileStorage<TestCredential>({ dir });
     await expect(storage.clear()).resolves.toBeUndefined();
   });
 
   describe("withLock", () => {
     it("attaches lock to storage via fluent API", async () => {
       const lockPath = join(dir, "test.lock");
-      const storage = fileStorage({ dir }).withLock(fileLock({ lockPath }));
+      const storage = fileStorage<TestCredential>({ dir }).withLock(fileLock({ lockPath }));
 
       expect(storage.lock).toBeDefined();
 
-      // Should still work as normal storage
-      const credential = { access_token: "tok", token_type: "Bearer", expires_in: 3600 };
+      const credential: TestCredential = { access_token: "tok", token_type: "Bearer", expires_in: 3600 };
       await storage.save(credential);
       expect(await storage.load()).toEqual(credential);
     });
 
     it("serializes concurrent calls via lock", async () => {
       const lockPath = join(dir, "test.lock");
-      const storage = fileStorage({ dir }).withLock(fileLock({ lockPath }));
+      const storage = fileStorage<TestCredential>({ dir }).withLock(fileLock({ lockPath }));
       const order: number[] = [];
 
       const entered = new Promise<void>((resolve) => {

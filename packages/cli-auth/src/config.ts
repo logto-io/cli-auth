@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import type { Storage } from "./types.js";
+import type { Storage, TokenSet } from "./types.js";
 
 // === Provider ===
 
@@ -22,7 +22,7 @@ export const providerConfigSchema = z.object({
 export const baseConfigSchema = z.object({
   provider: providerConfigSchema,
   clientId: z.string(),
-  storage: z.custom<Storage>(),
+  storage: z.custom<Storage<TokenSet>>(),
   resource: z.string().optional(),
   scope: z.string().optional(),
   extraParams: z.record(z.string(), z.string()).optional(),

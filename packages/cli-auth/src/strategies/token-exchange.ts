@@ -1,4 +1,5 @@
 import type { TokenExchangeConfig } from "../config.js";
+import type { GetTokenOptions } from "../types.js";
 import { TokenManager } from "../token-manager.js";
 import { fetchTokenResponse, refreshTokenGrant } from "../utils.js";
 
@@ -15,13 +16,13 @@ export class TokenExchangeAuth {
     this.tokenManager = new TokenManager({
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
-      refresh: (currentRefreshToken) => this.onRefresh(currentRefreshToken),
+      refresh: (refreshToken, options) => this.onRefresh(refreshToken, options),
     });
   }
 
-  private async onRefresh(currentRefreshToken?: string) {
-    if (currentRefreshToken) {
-      return refreshTokenGrant(this.config.provider.metadata.tokenEndpoint, this.config.clientId, currentRefreshToken);
+  private async onRefresh(refreshToken: string | undefined, options?: GetTokenOptions) {
+    if (refreshToken) {
+      return refreshTokenGrant(this.config.provider.metadata.tokenEndpoint, this.config.clientId, refreshToken, options);
     }
     return this.exchangeToken();
   }
@@ -70,8 +71,8 @@ export class TokenExchangeAuth {
     await this.tokenManager.save(await this.exchangeToken());
   }
 
-  async getToken(): Promise<string> {
-    return this.tokenManager.getToken();
+  async getToken(options?: GetTokenOptions): Promise<string> {
+    return this.tokenManager.getToken(options);
   }
 
   async logout(): Promise<void> {

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createCliAuth } from "../index.js";
+import type { TokenSet } from "../types.js";
 
 const server = setupServer();
 
@@ -32,19 +33,19 @@ function useCaptureTokenEndpoint() {
 }
 
 function createTestAuth(overrides: Record<string, unknown> = {}) {
-  const stored: Record<string, unknown> = {};
+  let stored: TokenSet | undefined;
   return createCliAuth({
     strategy: "client-credentials",
     provider: { type: "oidc", metadata: { tokenEndpoint } },
     clientId: "my-client",
     clientSecret: "my-secret",
     storage: {
-      load: async () => stored.credential,
-      save: async (credential: unknown) => {
-        stored.credential = credential;
+      load: async () => stored,
+      save: async (credential: TokenSet) => {
+        stored = credential;
       },
       clear: async () => {
-        delete stored.credential;
+        stored = undefined;
       },
     },
     ...overrides,
@@ -137,6 +138,81 @@ describe("client-credentials", () => {
       );
       const auth = createTestAuth();
       await expect(auth.login()).rejects.toThrow();
+    });
+  });
+
+  describe("getToken with resource", () => {
+    it("fetches token with resource param via client_credentials grant", async () => {
+      let requestBodies: URLSearchParams[] = [];
+      server.use(
+        http.post(tokenEndpoint, async ({ request }) => {
+          const body = new URLSearchParams(await request.text());
+          requestBodies.push(body);
+          const resource = body.get("resource");
+          return HttpResponse.json({
+            access_token: resource ? `token-for-${resource}` : "default-token",
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        })
+      );
+
+      const auth = createTestAuth();
+      await auth.login();
+
+      const token = await auth.getToken({ resource: "https://api.example.com" });
+
+      expect(token).toBe("token-for-https://api.example.com");
+      // Should have made a second request (login + getToken)
+      expect(requestBodies).toHaveLength(2);
+      expect(requestBodies[1]!.get("grant_type")).toBe("client_credentials");
+      expect(requestBodies[1]!.get("resource")).toBe("https://api.example.com");
+    });
+
+    it("caches resource tokens separately", async () => {
+      let requestCount = 0;
+      server.use(
+        http.post(tokenEndpoint, async ({ request }) => {
+          requestCount++;
+          const body = new URLSearchParams(await request.text());
+          return HttpResponse.json({
+            access_token: `token-${requestCount}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        })
+      );
+
+      const auth = createTestAuth();
+      await auth.login(); // request 1
+
+      await auth.getToken({ resource: "https://api-a.example.com" }); // request 2
+      await auth.getToken({ resource: "https://api-a.example.com" }); // cached
+      expect(requestCount).toBe(2);
+
+      await auth.getToken({ resource: "https://api-b.example.com" }); // request 3
+      expect(requestCount).toBe(3);
+    });
+
+    it("sends extraParams in client_credentials request", async () => {
+      let capturedBody: URLSearchParams | undefined;
+      server.use(
+        http.post(tokenEndpoint, async ({ request }) => {
+          capturedBody = new URLSearchParams(await request.text());
+          return HttpResponse.json({
+            access_token: "test-token",
+            token_type: "Bearer",
+            expires_in: 3600,
+          });
+        })
+      );
+
+      const auth = createTestAuth();
+      await auth.login();
+
+      await auth.getToken({ extraParams: { organization_id: "org_1" } });
+
+      expect(capturedBody!.get("organization_id")).toBe("org_1");
     });
   });
 });
