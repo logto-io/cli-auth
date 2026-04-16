@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createCliAuth } from "../index.js";
@@ -192,6 +192,23 @@ describe("client-credentials", () => {
 
       await auth.getToken({ resource: "https://api-b.example.com" }); // request 3
       expect(requestCount).toBe(3);
+    });
+
+    it("uses config.fetch for token requests when provided", async () => {
+      const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          access_token: "custom-fetch-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        })
+      );
+
+      const auth = createTestAuth({ fetch: fakeFetch });
+      await auth.login();
+
+      const token = await auth.getToken();
+      expect(token).toBe("custom-fetch-token");
+      expect(fakeFetch).toHaveBeenCalled();
     });
 
     it("sends extraParams in client_credentials request", async () => {

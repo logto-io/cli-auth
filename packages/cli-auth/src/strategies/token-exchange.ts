@@ -8,11 +8,13 @@ export type TokenExchangeStrategy = { config: TokenExchangeConfig; auth: TokenEx
 export class TokenExchangeAuth {
   private readonly config: TokenExchangeConfig;
   private readonly tokenManager: TokenManager;
+  private readonly fetch: typeof fetch;
 
   readonly strategy = "token-exchange" as const;
 
   constructor(config: TokenExchangeConfig) {
     this.config = config;
+    this.fetch = config.fetch ?? globalThis.fetch;
     this.tokenManager = new TokenManager({
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
@@ -22,7 +24,7 @@ export class TokenExchangeAuth {
 
   private async onRefresh(refreshToken: string | undefined, options?: GetTokenOptions) {
     if (refreshToken) {
-      return refreshTokenGrant(this.config.provider.metadata.tokenEndpoint, this.config.clientId, refreshToken, options);
+      return refreshTokenGrant({ tokenEndpoint: this.config.provider.metadata.tokenEndpoint, clientId: this.config.clientId, refreshToken, options, fetch: this.fetch });
     }
     return this.exchangeToken();
   }
@@ -64,7 +66,7 @@ export class TokenExchangeAuth {
       }
     }
 
-    return fetchTokenResponse(provider.metadata.tokenEndpoint, body, extraHeaders);
+    return fetchTokenResponse({ endpoint: provider.metadata.tokenEndpoint, body, headers: extraHeaders, fetch: this.fetch });
   }
 
   async login() {

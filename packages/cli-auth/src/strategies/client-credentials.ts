@@ -8,11 +8,13 @@ export type ClientCredentialsStrategy = { config: ClientCredentialsConfig; auth:
 export class ClientCredentialsAuth {
   private readonly config: ClientCredentialsConfig;
   private readonly tokenManager: TokenManager;
+  private readonly fetch: typeof fetch;
 
   readonly strategy = "client-credentials" as const;
 
   constructor(config: ClientCredentialsConfig) {
     this.config = config;
+    this.fetch = config.fetch ?? globalThis.fetch;
     this.tokenManager = new TokenManager({
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
@@ -49,7 +51,7 @@ export class ClientCredentialsAuth {
       }
     }
 
-    return fetchTokenResponse(provider.metadata.tokenEndpoint, body, extraHeaders);
+    return fetchTokenResponse({ endpoint: provider.metadata.tokenEndpoint, body, headers: extraHeaders, fetch: this.fetch });
   }
 
   async login() {

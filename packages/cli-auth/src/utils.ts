@@ -13,15 +13,17 @@ export function buildTokenCacheKey(options?: GetTokenOptions): string {
   return parts.join("&");
 }
 
-export async function fetchTokenResponse(
-  endpoint: string,
-  body: URLSearchParams,
-  headers?: Record<string, string>,
-): Promise<TokenResponse> {
-  const response = await fetch(endpoint, {
+export async function fetchTokenResponse(params: {
+  endpoint: string;
+  body: URLSearchParams;
+  headers?: Record<string, string>;
+  fetch?: typeof fetch;
+}): Promise<TokenResponse> {
+  const fetchFn = params.fetch ?? globalThis.fetch;
+  const response = await fetchFn(params.endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", ...headers },
-    body: body.toString(),
+    headers: { "Content-Type": "application/x-www-form-urlencoded", ...params.headers },
+    body: params.body.toString(),
   });
   if (!response.ok) {
     throw new Error(`Token request failed with status ${response.status}`);
@@ -29,24 +31,25 @@ export async function fetchTokenResponse(
   return (await response.json()) as TokenResponse;
 }
 
-export async function refreshTokenGrant(
-  tokenEndpoint: string,
-  clientId: string,
-  refreshToken: string,
-  options?: GetTokenOptions,
-): Promise<TokenResponse> {
+export async function refreshTokenGrant(params: {
+  tokenEndpoint: string;
+  clientId: string;
+  refreshToken: string;
+  options?: GetTokenOptions;
+  fetch?: typeof fetch;
+}): Promise<TokenResponse> {
   const body = new URLSearchParams({
-    client_id: clientId,
+    client_id: params.clientId,
     grant_type: "refresh_token",
-    refresh_token: refreshToken,
+    refresh_token: params.refreshToken,
   });
-  if (options?.resource) {
-    body.set("resource", options.resource);
+  if (params.options?.resource) {
+    body.set("resource", params.options.resource);
   }
-  if (options?.extraParams) {
-    for (const [key, value] of Object.entries(options.extraParams)) {
+  if (params.options?.extraParams) {
+    for (const [key, value] of Object.entries(params.options.extraParams)) {
       body.set(key, value);
     }
   }
-  return fetchTokenResponse(tokenEndpoint, body);
+  return fetchTokenResponse({ endpoint: params.tokenEndpoint, body, fetch: params.fetch });
 }
