@@ -132,6 +132,6 @@ export class DeviceCodeAuth {
   }
 
   async status(): Promise<{ authenticated: boolean; strategy: "device-code" }> {
-    return { authenticated: this.tokenManager.hasToken, strategy: this.strategy };
+    return { authenticated: await this.tokenManager.hasToken(), strategy: this.strategy };
   }
 }

@@ -8,9 +8,6 @@ export type TokenManagerConfig = {
 };
 
 export class TokenManager {
-  private refreshToken: string | undefined;
-  private readonly tokenCache = new Map<string, CachedToken>();
-
   private readonly storage: Storage<TokenSet>;
   private readonly refresh?: (refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>;
   private readonly tokenRefreshThreshold?: number;
@@ -21,42 +18,34 @@ export class TokenManager {
     this.tokenRefreshThreshold = config.tokenRefreshThreshold;
   }
 
-  get hasToken(): boolean {
-    return this.tokenCache.size > 0;
-  }
-
-  async load(): Promise<void> {
+  async hasToken(): Promise<boolean> {
     const stored = await this.storage.load();
-    if (!stored) {
-      return;
-    }
-    this.refreshToken = stored.refresh_token;
-    this.tokenCache.clear();
-    for (const [key, cached] of Object.entries(stored.tokens)) {
-      this.tokenCache.set(key, cached);
-    }
+    return stored !== undefined && Object.keys(stored.tokens).length > 0;
   }
 
   async save(data: TokenResponse, options?: GetTokenOptions): Promise<void> {
     const key = buildTokenCacheKey(options);
-    this.tokenCache.set(key, {
+    const stored = await this.storage.load();
+    const tokens = { ...stored?.tokens };
+    tokens[key] = {
       access_token: data.access_token,
       expires_at: Date.now() + data.expires_in * 1000,
       scope: data.scope,
+    };
+    await this.storage.save({
+      refresh_token: data.refresh_token ?? stored?.refresh_token,
+      tokens,
     });
-    if (data.refresh_token) {
-      this.refreshToken = data.refresh_token;
-    }
-    await this.persistTokenSet();
   }
 
   async getToken(options?: GetTokenOptions): Promise<string> {
     const key = buildTokenCacheKey(options);
-    const cached = this.tokenCache.get(key);
+    const stored = await this.storage.load();
+    const cached = stored?.tokens[key];
 
     // If no cached token for this key but we can refresh, try to fetch
-    if (!cached && (this.refreshToken || this.refresh)) {
-      return this.refreshForKey(key, options);
+    if (!cached && (stored?.refresh_token || this.refresh)) {
+      return this.refreshForKey(key, stored?.refresh_token, options);
     }
 
     if (!cached) {
@@ -66,12 +55,13 @@ export class TokenManager {
     if (this.isExpired(cached)) {
       const release = await this.storage.lock?.();
       try {
-        const rechecked = this.tokenCache.get(key);
-        if (rechecked && this.isExpired(rechecked)) {
-          return this.refreshForKey(key, options);
+        // Re-read from storage after acquiring lock — another process may have refreshed
+        const rechecked = await this.storage.load();
+        const recheckedToken = rechecked?.tokens[key];
+        if (!recheckedToken || this.isExpired(recheckedToken)) {
+          return this.refreshForKey(key, rechecked?.refresh_token, options);
         }
-        // Another caller already refreshed
-        return this.tokenCache.get(key)!.access_token;
+        return recheckedToken.access_token;
       } finally {
         await release?.();
       }
@@ -81,8 +71,6 @@ export class TokenManager {
   }
 
   async clear(): Promise<void> {
-    this.refreshToken = undefined;
-    this.tokenCache.clear();
     await this.storage.clear();
   }
 
@@ -91,23 +79,12 @@ export class TokenManager {
     return Date.now() >= cached.expires_at - threshold;
   }
 
-  private async refreshForKey(key: string, options?: GetTokenOptions): Promise<string> {
-    const data = await this.refresh?.(this.refreshToken, options);
+  private async refreshForKey(key: string, refreshToken: string | undefined, options?: GetTokenOptions): Promise<string> {
+    const data = await this.refresh?.(refreshToken, options);
     if (!data) {
       throw new Error("Token expired and cannot be refreshed.");
     }
     await this.save(data, options);
     return data.access_token;
-  }
-
-  private async persistTokenSet(): Promise<void> {
-    const tokens: Record<string, CachedToken> = {};
-    for (const [key, cached] of this.tokenCache.entries()) {
-      tokens[key] = cached;
-    }
-    await this.storage.save({
-      refresh_token: this.refreshToken,
-      tokens,
-    });
   }
 }

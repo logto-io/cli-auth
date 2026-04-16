@@ -11,6 +11,8 @@ import {
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createCliAuth } from "../index.js";
+import { memoryStorage } from "../storage/memory.js";
+import type { TokenSet } from "../types.js";
 
 const server = setupServer();
 
@@ -58,11 +60,7 @@ function createTestAuth(overrides: Record<string, unknown> = {}) {
     strategy: "device-code" as const,
     provider: { type: "oidc", metadata: { tokenEndpoint, deviceAuthorizationEndpoint: deviceAuthEndpoint } },
     clientId: "my-client",
-    storage: {
-      load: async () => undefined,
-      save: async () => {},
-      clear: async () => {},
-    },
+    storage: memoryStorage<TokenSet>(),
     ...overrides,
   });
 }
