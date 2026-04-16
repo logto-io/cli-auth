@@ -15,6 +15,7 @@ afterEach(() => {
 afterAll(() => server.close());
 
 const tokenEndpoint = "https://auth.example.com/token";
+const revocationEndpoint = "https://auth.example.com/revoke";
 
 function useCaptureTokenEndpoint() {
   let capturedBody: URLSearchParams;
@@ -258,6 +259,33 @@ describe("token-exchange", () => {
       const token = await auth.getToken();
       expect(token).toBe("token-2");
       expect(callCount).toBe(2);
+    });
+  });
+
+  describe("logout — token revocation", () => {
+    it("revokes refresh token at revocation endpoint on logout", async () => {
+      let revokeBody: URLSearchParams | undefined;
+      server.use(
+        http.post(revocationEndpoint, async ({ request }) => {
+          revokeBody = new URLSearchParams(await request.text());
+          return new HttpResponse(null, { status: 200 });
+        })
+      );
+      useCaptureTokenEndpoint();
+
+      const auth = createTestAuth({
+        provider: {
+          type: "oidc",
+          metadata: { tokenEndpoint, revocationEndpoint },
+        },
+      });
+      await auth.login();
+      vi.useRealTimers();
+      await auth.logout();
+
+      expect(revokeBody).toBeDefined();
+      expect(revokeBody!.get("client_id")).toBe("my-client");
+      expect(revokeBody!.get("token")).toBe("test-refresh-token");
     });
   });
 });

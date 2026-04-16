@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildTokenCacheKey, fetchTokenResponse, refreshTokenGrant } from "../utils.js";
+import { buildTokenCacheKey, fetchTokenResponse, refreshTokenGrant, revokeToken } from "../utils.js";
 
 describe("buildTokenCacheKey", () => {
   it("returns empty string when no options", () => {
@@ -57,6 +57,62 @@ describe("fetchTokenResponse", () => {
 
     expect(result.access_token).toBe("custom-token");
     expect(fakeFetch).toHaveBeenCalledOnce();
+  });
+});
+
+describe("revokeToken", () => {
+  it("throws on non-2xx response", async () => {
+    const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(null, { status: 503 })
+    );
+
+    await expect(
+      revokeToken({
+        endpoint: "https://auth.example.com/revoke",
+        clientId: "my-client",
+        token: "bad-token",
+        fetch: fakeFetch,
+      })
+    ).rejects.toThrow("Token revocation failed with status 503");
+  });
+
+  it("uses provided fetch function", async () => {
+    const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(null, { status: 200 })
+    );
+
+    await revokeToken({
+      endpoint: "https://auth.example.com/revoke",
+      clientId: "c",
+      token: "t",
+      fetch: fakeFetch,
+    });
+
+    expect(fakeFetch).toHaveBeenCalledOnce();
+  });
+
+  it("sends POST with client_id and token as form-urlencoded", async () => {
+    const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(null, { status: 200 })
+    );
+
+    await revokeToken({
+      endpoint: "https://auth.example.com/revoke",
+      clientId: "my-client",
+      token: "refresh-token-1",
+      fetch: fakeFetch,
+    });
+
+    expect(fakeFetch).toHaveBeenCalledOnce();
+    const [url, init] = fakeFetch.mock.calls[0]!;
+    expect(url).toBe("https://auth.example.com/revoke");
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toEqual(
+      expect.objectContaining({ "Content-Type": "application/x-www-form-urlencoded" })
+    );
+    const body = new URLSearchParams(init?.body as string);
+    expect(body.get("client_id")).toBe("my-client");
+    expect(body.get("token")).toBe("refresh-token-1");
   });
 });
 

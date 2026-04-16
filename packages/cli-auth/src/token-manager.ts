@@ -15,6 +15,7 @@ export function resolveSession(stored: TokenSet | undefined, key: string): Token
 export type TokenManagerConfig = {
   storage: Storage<TokenSet>;
   refresh?: (refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>;
+  revoke?: (token: string) => Promise<void>;
   tokenRefreshThreshold?: number;
   /** Clock source for computing expiry. Defaults to Date.now. */
   now?: () => number;
@@ -23,12 +24,14 @@ export type TokenManagerConfig = {
 export class TokenManager {
   private readonly storage: Storage<TokenSet>;
   private readonly refresh?: (refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>;
+  private readonly revoke?: (token: string) => Promise<void>;
   private readonly tokenRefreshThreshold?: number;
   private readonly now: () => number;
 
   constructor(config: TokenManagerConfig) {
     this.storage = config.storage;
     this.refresh = config.refresh;
+    this.revoke = config.revoke;
     this.tokenRefreshThreshold = config.tokenRefreshThreshold;
     this.now = config.now ?? Date.now;
   }
@@ -91,6 +94,16 @@ export class TokenManager {
   }
 
   async clear(): Promise<void> {
+    if (this.revoke) {
+      const stored = await this.storage.load();
+      if (stored?.refresh_token) {
+        try {
+          await this.revoke(stored.refresh_token);
+        } catch {
+          // Revoke failure should not block logout
+        }
+      }
+    }
     await this.storage.clear();
   }
 

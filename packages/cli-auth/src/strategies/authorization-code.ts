@@ -1,7 +1,7 @@
 import type { AuthorizationCodeConfig } from "../config.js";
 import type { GetTokenOptions } from "../types.js";
 import { TokenManager } from "../token-manager.js";
-import { fetchTokenResponse, refreshTokenGrant } from "../utils.js";
+import { fetchTokenResponse, refreshTokenGrant, revokeToken } from "../utils.js";
 
 export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth: AuthorizationCodeAuth };
 
@@ -22,6 +22,9 @@ export class AuthorizationCodeAuth {
         if (!refreshToken) return Promise.resolve(undefined);
         return refreshTokenGrant({ tokenEndpoint: config.provider.metadata.tokenEndpoint, clientId: config.clientId, refreshToken, options, fetch: this.fetch });
       },
+      revoke: config.provider.metadata.revocationEndpoint
+        ? (token) => revokeToken({ endpoint: config.provider.metadata.revocationEndpoint!, clientId: config.clientId, token, fetch: this.fetch })
+        : undefined,
     });
   }
 

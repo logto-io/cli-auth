@@ -26,6 +26,7 @@ afterAll(() => server.close());
 
 const deviceAuthEndpoint = "https://auth.example.com/device/authorize";
 const tokenEndpoint = "https://auth.example.com/token";
+const revocationEndpoint = "https://auth.example.com/revoke";
 
 function useDeviceAuthMock(
   tokenHandler?: Parameters<typeof http.post>[1]
@@ -325,6 +326,40 @@ describe("device-code", () => {
       expect(getTokenBody().get("grant_type")).toBe(
         "urn:ietf:params:oauth:grant-type:device_code"
       );
+    });
+  });
+
+  describe("logout — token revocation", () => {
+    it("revokes refresh token at revocation endpoint on logout", async () => {
+      let revokeBody: URLSearchParams | undefined;
+      server.use(
+        http.post(revocationEndpoint, async ({ request }) => {
+          revokeBody = new URLSearchParams(await request.text());
+          return new HttpResponse(null, { status: 200 });
+        })
+      );
+      useDeviceAuthMock(() =>
+        HttpResponse.json({
+          access_token: "tok",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "device-rt",
+        })
+      );
+
+      const auth = createTestAuth({
+        provider: {
+          type: "oidc",
+          metadata: { tokenEndpoint, deviceAuthorizationEndpoint: deviceAuthEndpoint, revocationEndpoint },
+        },
+      });
+      await loginWithFakeTimers(auth);
+      vi.useRealTimers();
+      await auth.logout();
+
+      expect(revokeBody).toBeDefined();
+      expect(revokeBody!.get("client_id")).toBe("my-client");
+      expect(revokeBody!.get("token")).toBe("device-rt");
     });
   });
 });
