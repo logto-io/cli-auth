@@ -222,6 +222,40 @@ describe("device-code", () => {
     });
   });
 
+  describe("custom fetch", () => {
+    it("uses config.fetch for device authorization and token polling", async () => {
+      let callCount = 0;
+      const fakeFetch = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+        callCount++;
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        if (url === deviceAuthEndpoint) {
+          return Response.json({
+            device_code: "dev-code",
+            user_code: "ABCD-1234",
+            verification_uri: "https://auth.example.com/verify",
+            expires_in: 300,
+            interval: 1,
+          });
+        }
+        // Token endpoint — succeed immediately
+        return Response.json({
+          access_token: "custom-fetch-device-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        });
+      });
+
+      const auth = createTestAuth({ fetch: fakeFetch });
+      const loginPromise = auth.login({ onAuthorization: vi.fn() });
+      await vi.advanceTimersByTimeAsync(1000);
+      await loginPromise;
+
+      expect(await auth.getToken()).toBe("custom-fetch-device-token");
+      // At least 2 calls: device auth + token poll
+      expect(fakeFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe("request parameters", () => {
     function useCaptureEndpoints() {
       let capturedDeviceAuthBody: URLSearchParams;

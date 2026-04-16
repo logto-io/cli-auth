@@ -170,6 +170,24 @@ describe("token-exchange", () => {
     });
   });
 
+  describe("custom fetch", () => {
+    it("uses config.fetch for token exchange requests", async () => {
+      const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          access_token: "custom-fetch-exchange-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        })
+      );
+
+      const auth = createTestAuth({ fetch: fakeFetch });
+      await auth.login();
+
+      expect(await auth.getToken()).toBe("custom-fetch-exchange-token");
+      expect(fakeFetch).toHaveBeenCalledOnce();
+    });
+  });
+
   describe("getToken — refresh", () => {
     it("refreshes via refresh_token grant when token expires and refresh token is available", async () => {
       server.use(

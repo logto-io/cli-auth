@@ -27,6 +27,7 @@ export const baseConfigSchema = z.object({
   scope: z.string().optional(),
   extraParams: z.record(z.string(), z.string()).optional(),
   tokenRefreshThreshold: z.number().optional(),
+  fetch: z.custom<typeof fetch>().optional(),
 });
 
 // === Strategy configs ===

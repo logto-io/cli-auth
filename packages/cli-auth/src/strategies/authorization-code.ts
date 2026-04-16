@@ -8,17 +8,19 @@ export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth:
 export class AuthorizationCodeAuth {
   private readonly config: AuthorizationCodeConfig;
   private readonly tokenManager: TokenManager;
+  private readonly fetch: typeof fetch;
 
   readonly strategy = "authorization-code" as const;
 
   constructor(config: AuthorizationCodeConfig) {
     this.config = config;
+    this.fetch = config.fetch ?? globalThis.fetch;
     this.tokenManager = new TokenManager({
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
       refresh: (refreshToken, options) => {
         if (!refreshToken) return Promise.resolve(undefined);
-        return refreshTokenGrant(config.provider.metadata.tokenEndpoint, config.clientId, refreshToken, options);
+        return refreshTokenGrant({ tokenEndpoint: config.provider.metadata.tokenEndpoint, clientId: config.clientId, refreshToken, options, fetch: this.fetch });
       },
     });
   }
@@ -142,7 +144,7 @@ export class AuthorizationCodeAuth {
       tokenBody.set("resource", resource);
     }
 
-    const data = await fetchTokenResponse(provider.metadata.tokenEndpoint, tokenBody);
+    const data = await fetchTokenResponse({ endpoint: provider.metadata.tokenEndpoint, body: tokenBody, fetch: this.fetch });
     await this.tokenManager.save(data);
   }
 

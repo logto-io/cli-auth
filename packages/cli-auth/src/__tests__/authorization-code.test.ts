@@ -219,6 +219,35 @@ describe("authorization-code", () => {
     });
   });
 
+  describe("custom fetch", () => {
+    it("uses config.fetch for token exchange", async () => {
+      const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          access_token: "custom-fetch-authcode-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        })
+      );
+
+      const auth = createTestAuth({ fetch: fakeFetch });
+      const onAuthorization = vi.fn();
+      const loginPromise = auth.login({ onAuthorization });
+
+      await vi.waitFor(() => expect(onAuthorization).toHaveBeenCalled());
+
+      const authUrl = new URL(onAuthorization.mock.calls[0]![0]);
+      const redirectUri = authUrl.searchParams.get("redirect_uri")!;
+      const state = authUrl.searchParams.get("state")!;
+
+      // Use real global fetch to hit the loopback callback server
+      await globalThis.fetch(`${redirectUri}?code=test-code&state=${state}`);
+      await loginPromise;
+
+      expect(await auth.getToken()).toBe("custom-fetch-authcode-token");
+      expect(fakeFetch).toHaveBeenCalledOnce();
+    });
+  });
+
   describe("login — request parameters", () => {
     it("sends scope in authorization URL", async () => {
       useTokenEndpoint();

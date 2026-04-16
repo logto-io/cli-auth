@@ -8,17 +8,19 @@ export type DeviceCodeStrategy = { config: DeviceCodeConfig; auth: DeviceCodeAut
 export class DeviceCodeAuth {
   private readonly config: DeviceCodeConfig;
   private readonly tokenManager: TokenManager;
+  private readonly fetch: typeof fetch;
 
   readonly strategy = "device-code" as const;
 
   constructor(config: DeviceCodeConfig) {
     this.config = config;
+    this.fetch = config.fetch ?? globalThis.fetch;
     this.tokenManager = new TokenManager({
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
       refresh: (refreshToken, options) => {
         if (!refreshToken) return Promise.resolve(undefined);
-        return refreshTokenGrant(config.provider.metadata.tokenEndpoint, config.clientId, refreshToken, options);
+        return refreshTokenGrant({ tokenEndpoint: config.provider.metadata.tokenEndpoint, clientId: config.clientId, refreshToken, options, fetch: this.fetch });
       },
     });
   }
@@ -49,7 +51,7 @@ export class DeviceCodeAuth {
       }
     }
 
-    const deviceAuthResponse = await fetch(
+    const deviceAuthResponse = await this.fetch(
       deviceAuthorizationEndpoint,
       {
         method: "POST",
@@ -97,7 +99,7 @@ export class DeviceCodeAuth {
         tokenBody.set("resource", resource);
       }
 
-      const tokenResponse = await fetch(provider.metadata.tokenEndpoint, {
+      const tokenResponse = await this.fetch(provider.metadata.tokenEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: tokenBody.toString(),
