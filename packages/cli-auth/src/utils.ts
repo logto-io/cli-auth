@@ -31,6 +31,26 @@ export async function fetchTokenResponse(params: {
   return (await response.json()) as TokenResponse;
 }
 
+export async function revokeToken(params: {
+  endpoint: string;
+  clientId: string;
+  token: string;
+  fetch?: typeof fetch;
+}): Promise<void> {
+  const fetchFn = params.fetch ?? globalThis.fetch;
+  const response = await fetchFn(params.endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: params.clientId,
+      token: params.token,
+    }).toString(),
+  });
+  if (!response.ok) {
+    throw new Error(`Token revocation failed with status ${response.status}`);
+  }
+}
+
 export async function refreshTokenGrant(params: {
   tokenEndpoint: string;
   clientId: string;

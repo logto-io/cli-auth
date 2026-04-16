@@ -22,6 +22,7 @@ afterAll(() => server.close());
 
 const authorizationEndpoint = "https://auth.example.com/authorize";
 const tokenEndpoint = "https://auth.example.com/token";
+const revocationEndpoint = "https://auth.example.com/revoke";
 
 function useTokenEndpoint(
   handler?: Parameters<typeof http.post>[1]
@@ -662,6 +663,63 @@ describe("authorization-code", () => {
       void fetch(`${redirectUri}?code=some-code&state=${state}`);
 
       await expect(loginPromise).rejects.toThrow();
+    });
+  });
+
+  describe("logout — token revocation", () => {
+    it("revokes refresh token at revocation endpoint on logout", async () => {
+      let revokeBody: URLSearchParams | undefined;
+      server.use(
+        http.post(revocationEndpoint, async ({ request }) => {
+          revokeBody = new URLSearchParams(await request.text());
+          return new HttpResponse(null, { status: 200 });
+        })
+      );
+      useTokenEndpoint(() =>
+        HttpResponse.json({
+          access_token: "tok",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "rt-to-revoke",
+        })
+      );
+
+      const auth = createTestAuth({
+        provider: {
+          type: "oidc",
+          metadata: { authorizationEndpoint, tokenEndpoint, revocationEndpoint },
+        },
+      });
+      await loginWithCallback(auth);
+      await auth.logout();
+
+      expect(revokeBody).toBeDefined();
+      expect(revokeBody!.get("client_id")).toBe("my-client");
+      expect(revokeBody!.get("token")).toBe("rt-to-revoke");
+    });
+
+    it("does not call revocation endpoint when revocationEndpoint is not configured", async () => {
+      let revokeCalled = false;
+      server.use(
+        http.post(revocationEndpoint, () => {
+          revokeCalled = true;
+          return new HttpResponse(null, { status: 200 });
+        })
+      );
+      useTokenEndpoint(() =>
+        HttpResponse.json({
+          access_token: "tok",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "rt",
+        })
+      );
+
+      const auth = createTestAuth();
+      await loginWithCallback(auth);
+      await auth.logout();
+
+      expect(revokeCalled).toBe(false);
     });
   });
 });

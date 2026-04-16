@@ -271,6 +271,46 @@ describe("TokenManager", () => {
       await manager.clear();
       expect(await storage.load()).toBeUndefined();
     });
+
+    it("calls revoke with refresh token before clearing storage", async () => {
+      const revoke = vi.fn<(token: string) => Promise<void>>().mockResolvedValue(undefined);
+      const storage = memoryStorage<TokenSet>();
+      const manager = new TokenManager({ storage, revoke });
+      await manager.save(sampleToken);
+
+      await manager.clear();
+
+      expect(revoke).toHaveBeenCalledWith("refresh-1");
+      expect(await storage.load()).toBeUndefined();
+    });
+
+    it("skips revoke when no refresh token is stored", async () => {
+      const revoke = vi.fn<(token: string) => Promise<void>>().mockResolvedValue(undefined);
+      const storage = memoryStorage<TokenSet>();
+      const manager = new TokenManager({ storage, revoke });
+      await manager.save({
+        access_token: "access-only",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+
+      await manager.clear();
+
+      expect(revoke).not.toHaveBeenCalled();
+      expect(await storage.load()).toBeUndefined();
+    });
+
+    it("clears storage even when revoke fails", async () => {
+      const revoke = vi.fn<(token: string) => Promise<void>>().mockRejectedValue(new Error("network error"));
+      const storage = memoryStorage<TokenSet>();
+      const manager = new TokenManager({ storage, revoke });
+      await manager.save(sampleToken);
+
+      await manager.clear();
+
+      expect(revoke).toHaveBeenCalledWith("refresh-1");
+      expect(await storage.load()).toBeUndefined();
+    });
   });
 
   describe("multi-token persistence", () => {

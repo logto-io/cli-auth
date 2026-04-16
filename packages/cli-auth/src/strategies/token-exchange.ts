@@ -1,7 +1,7 @@
 import type { TokenExchangeConfig } from "../config.js";
 import type { GetTokenOptions } from "../types.js";
 import { TokenManager } from "../token-manager.js";
-import { fetchTokenResponse, refreshTokenGrant } from "../utils.js";
+import { fetchTokenResponse, refreshTokenGrant, revokeToken } from "../utils.js";
 
 export type TokenExchangeStrategy = { config: TokenExchangeConfig; auth: TokenExchangeAuth };
 
@@ -19,6 +19,9 @@ export class TokenExchangeAuth {
       storage: config.storage,
       tokenRefreshThreshold: config.tokenRefreshThreshold,
       refresh: (refreshToken, options) => this.onRefresh(refreshToken, options),
+      revoke: config.provider.metadata.revocationEndpoint
+        ? (token) => revokeToken({ endpoint: config.provider.metadata.revocationEndpoint!, clientId: config.clientId, token, fetch: this.fetch })
+        : undefined,
     });
   }
 

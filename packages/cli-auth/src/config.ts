@@ -10,6 +10,7 @@ export const providerMetadataSchema = z.object({
   tokenEndpoint: z.string(),
   authorizationEndpoint: z.string().optional(),
   deviceAuthorizationEndpoint: z.string().optional(),
+  revocationEndpoint: z.string().optional(),
 });
 
 export const providerConfigSchema = z.object({

@@ -1,7 +1,7 @@
 import type { DeviceCodeConfig } from "../config.js";
 import type { GetTokenOptions, TokenResponse } from "../types.js";
 import { TokenManager } from "../token-manager.js";
-import { refreshTokenGrant } from "../utils.js";
+import { refreshTokenGrant, revokeToken } from "../utils.js";
 
 export type DeviceCodeStrategy = { config: DeviceCodeConfig; auth: DeviceCodeAuth };
 
@@ -22,6 +22,9 @@ export class DeviceCodeAuth {
         if (!refreshToken) return Promise.resolve(undefined);
         return refreshTokenGrant({ tokenEndpoint: config.provider.metadata.tokenEndpoint, clientId: config.clientId, refreshToken, options, fetch: this.fetch });
       },
+      revoke: config.provider.metadata.revocationEndpoint
+        ? (token) => revokeToken({ endpoint: config.provider.metadata.revocationEndpoint!, clientId: config.clientId, token, fetch: this.fetch })
+        : undefined,
     });
   }
 
