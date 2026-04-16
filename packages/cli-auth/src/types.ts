@@ -18,6 +18,11 @@ export type TokenSet = {
   tokens: Record<string, CachedToken>;
 };
 
+export type TokenSession =
+  | { type: "empty" }
+  | { type: "refresh-only"; refreshToken: string }
+  | { type: "active"; cached: CachedToken };
+
 export type Storage<T = TokenResponse> = {
   load: () => Promise<T | undefined>;
   save: (credential: T) => Promise<void>;
