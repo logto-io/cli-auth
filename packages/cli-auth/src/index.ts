@@ -7,7 +7,7 @@ import { AuthorizationCodeAuth } from "./strategies/authorization-code.js";
 import { ClientCredentialsAuth } from "./strategies/client-credentials.js";
 import { TokenExchangeAuth } from "./strategies/token-exchange.js";
 
-export type { Storage, TokenResponse, GetTokenOptions, CachedToken, TokenSet } from "./types.js";
+export type { Storage, TokenResponse, GetTokenOptions, TokenSet } from "./types.js";
 export type {
   ProviderType,
   ProviderMetadata,
@@ -18,28 +18,13 @@ export type {
   AuthorizationCodeConfig,
   TokenExchangeConfig,
 } from "./config.js";
-export {
-  providerTypeSchema,
-  providerMetadataSchema,
-  providerConfigSchema,
-  baseConfigSchema,
-  clientCredentialsConfigSchema,
-  deviceCodeConfigSchema,
-  authorizationCodeConfigSchema,
-  tokenExchangeConfigSchema,
-} from "./config.js";
 export { TokenManager } from "./token-manager.js";
+export type { TokenManagerConfig } from "./token-manager.js";
 export { memoryStorage } from "./storage/memory.js";
 export { fileStorage } from "./storage/file.js";
 export { fileLock } from "./storage/file-lock.js";
 export { keyringStorage } from "./storage/keyring.js";
 export type { KeyringEntry } from "./storage/keyring.js";
-export type { TokenManagerConfig } from "./token-manager.js";
-export { fetchTokenResponse, refreshTokenGrant, buildTokenCacheKey } from "./utils.js";
-export { DeviceCodeAuth } from "./strategies/device-code.js";
-export { AuthorizationCodeAuth } from "./strategies/authorization-code.js";
-export { ClientCredentialsAuth } from "./strategies/client-credentials.js";
-export { TokenExchangeAuth } from "./strategies/token-exchange.js";
 
 export type CliAuthConfig =
   | DeviceCodeStrategy["config"]
