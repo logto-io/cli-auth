@@ -27,7 +27,7 @@ describe("TokenManager", () => {
       expect(await manager.getToken()).toBe("access-1");
     });
 
-    it("caches token — no refresh when not expired", async () => {
+    it("reads from storage — no refresh when not expired", async () => {
       const refresh = vi.fn<(refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>>();
       const manager = new TokenManager({ storage: memoryStorage<TokenSet>(), refresh });
       await manager.save(sampleToken);
@@ -183,63 +183,6 @@ describe("TokenManager", () => {
     });
   });
 
-  describe("lock integration", () => {
-    it("concurrent getToken calls only refresh once when storage has lock", async () => {
-      vi.useFakeTimers();
-      const refresh = vi.fn<(refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>>().mockResolvedValue({
-        access_token: "refreshed",
-        token_type: "Bearer",
-        expires_in: 3600,
-      });
-
-      // In-process mutex: lock() acquires, returns release function
-      let pending = Promise.resolve();
-      const lock = async () => {
-        const previous = pending;
-        let release!: () => void;
-        pending = new Promise<void>((r) => {
-          release = r;
-        });
-        await previous;
-        return async () => release();
-      };
-
-      const storage: Storage<TokenSet> = {
-        ...memoryStorage<TokenSet>(),
-        lock,
-      };
-
-      const manager = new TokenManager({ storage, refresh });
-      await manager.save(sampleToken);
-
-      vi.advanceTimersByTime(3601 * 1000);
-
-      const [t1, t2] = await Promise.all([manager.getToken(), manager.getToken()]);
-
-      expect(refresh).toHaveBeenCalledOnce();
-      expect(t1).toBe("refreshed");
-      expect(t2).toBe("refreshed");
-    });
-
-    it("refreshes without lock when storage does not provide it", async () => {
-      vi.useFakeTimers();
-      const refresh = vi.fn<(refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>>().mockResolvedValue({
-        access_token: "refreshed-no-lock",
-        token_type: "Bearer",
-        expires_in: 3600,
-      });
-
-      const manager = new TokenManager({ storage: memoryStorage<TokenSet>(), refresh });
-      await manager.save(sampleToken);
-
-      vi.advanceTimersByTime(3601 * 1000);
-
-      const token = await manager.getToken();
-      expect(token).toBe("refreshed-no-lock");
-      expect(refresh).toHaveBeenCalledOnce();
-    });
-  });
-
   describe("multi-token persistence", () => {
     it("persists multiple resource tokens to storage", async () => {
       const storage = memoryStorage<TokenSet>();
@@ -256,7 +199,7 @@ describe("TokenManager", () => {
       expect(stored?.refresh_token).toBe("refresh-1");
     });
 
-    it("new instance restores tokens from storage", async () => {
+    it("new instance reads tokens from shared storage without load()", async () => {
       const storage = memoryStorage<TokenSet>();
 
       // Instance A saves tokens
@@ -267,14 +210,13 @@ describe("TokenManager", () => {
         { resource: "https://api.example.com" }
       );
 
-      // Instance B uses the same storage — should recover tokens
+      // Instance B uses the same storage — should read tokens directly, no load() needed
       const managerB = new TokenManager({ storage });
-      await managerB.load();
       expect(await managerB.getToken()).toBe("access-1");
       expect(await managerB.getToken({ resource: "https://api.example.com" })).toBe("res-token");
     });
 
-    it("new instance restores refresh token from storage", async () => {
+    it("new instance uses refresh token from shared storage", async () => {
       vi.useFakeTimers();
       const storage = memoryStorage<TokenSet>();
       const refresh = vi.fn<(refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>>().mockResolvedValue({
@@ -287,9 +229,8 @@ describe("TokenManager", () => {
       const managerA = new TokenManager({ storage, refresh });
       await managerA.save(sampleToken);
 
-      // Instance B loads from storage, expires, should use restored refresh_token
+      // Instance B uses same storage, expires, should use refresh_token from storage
       const managerB = new TokenManager({ storage, refresh });
-      await managerB.load();
 
       vi.advanceTimersByTime(3601 * 1000);
 
@@ -298,14 +239,7 @@ describe("TokenManager", () => {
       vi.useRealTimers();
     });
 
-    it("load does nothing when storage is empty", async () => {
-      const storage = memoryStorage<TokenSet>();
-      const manager = new TokenManager({ storage });
-      await manager.load();
-      expect(manager.hasToken).toBe(false);
-    });
-
-    it("clear removes all cached resource tokens", async () => {
+    it("clear removes all resource tokens", async () => {
       const storage = memoryStorage<TokenSet>();
       const manager = new TokenManager({ storage });
       await manager.save(sampleToken);
@@ -375,22 +309,103 @@ describe("TokenManager", () => {
   });
 
   describe("hasToken", () => {
-    it("returns false before save", () => {
+    it("returns false before save", async () => {
       const manager = new TokenManager({ storage: memoryStorage<TokenSet>() });
-      expect(manager.hasToken).toBe(false);
+      expect(await manager.hasToken()).toBe(false);
     });
 
     it("returns true after save", async () => {
       const manager = new TokenManager({ storage: memoryStorage<TokenSet>() });
       await manager.save(sampleToken);
-      expect(manager.hasToken).toBe(true);
+      expect(await manager.hasToken()).toBe(true);
     });
 
     it("returns false after clear", async () => {
       const manager = new TokenManager({ storage: memoryStorage<TokenSet>() });
       await manager.save(sampleToken);
       await manager.clear();
-      expect(manager.hasToken).toBe(false);
+      expect(await manager.hasToken()).toBe(false);
+    });
+  });
+
+  describe("lock integration", () => {
+    it("concurrent getToken calls only refresh once when storage has lock", async () => {
+      vi.useFakeTimers();
+      const refresh = vi.fn<(refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>>().mockResolvedValue({
+        access_token: "refreshed",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+
+      // In-process mutex: lock() acquires, returns release function
+      let pending = Promise.resolve();
+      const lock = async () => {
+        const previous = pending;
+        let release!: () => void;
+        pending = new Promise<void>((r) => {
+          release = r;
+        });
+        await previous;
+        return async () => release();
+      };
+
+      const storage: Storage<TokenSet> = {
+        ...memoryStorage<TokenSet>(),
+        lock,
+      };
+
+      const manager = new TokenManager({ storage, refresh });
+      await manager.save(sampleToken);
+
+      vi.advanceTimersByTime(3601 * 1000);
+
+      const [t1, t2] = await Promise.all([manager.getToken(), manager.getToken()]);
+
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(t1).toBe("refreshed");
+      expect(t2).toBe("refreshed");
+    });
+
+    it("cross-process: second instance sees token refreshed by first via shared storage", async () => {
+      vi.useFakeTimers();
+      const storage = memoryStorage<TokenSet>();
+
+      const managerA = new TokenManager({
+        storage,
+        refresh: async () => ({
+          access_token: "refreshed-by-A",
+          token_type: "Bearer",
+          expires_in: 3600,
+        }),
+      });
+      await managerA.save(sampleToken);
+
+      vi.advanceTimersByTime(3601 * 1000);
+
+      // Process A refreshes the token
+      await managerA.getToken();
+
+      // Process B (new instance, same storage) should see the refreshed token
+      const managerB = new TokenManager({ storage });
+      expect(await managerB.getToken()).toBe("refreshed-by-A");
+    });
+
+    it("refreshes without lock when storage does not provide it", async () => {
+      vi.useFakeTimers();
+      const refresh = vi.fn<(refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>>().mockResolvedValue({
+        access_token: "refreshed-no-lock",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+
+      const manager = new TokenManager({ storage: memoryStorage<TokenSet>(), refresh });
+      await manager.save(sampleToken);
+
+      vi.advanceTimersByTime(3601 * 1000);
+
+      const token = await manager.getToken();
+      expect(token).toBe("refreshed-no-lock");
+      expect(refresh).toHaveBeenCalledOnce();
     });
   });
 });

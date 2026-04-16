@@ -155,6 +155,6 @@ export class AuthorizationCodeAuth {
   }
 
   async status(): Promise<{ authenticated: boolean; strategy: "authorization-code" }> {
-    return { authenticated: this.tokenManager.hasToken, strategy: this.strategy };
+    return { authenticated: await this.tokenManager.hasToken(), strategy: this.strategy };
   }
 }

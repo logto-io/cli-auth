@@ -80,6 +80,6 @@ export class TokenExchangeAuth {
   }
 
   async status(): Promise<{ authenticated: boolean; strategy: "token-exchange" }> {
-    return { authenticated: this.tokenManager.hasToken, strategy: this.strategy };
+    return { authenticated: await this.tokenManager.hasToken(), strategy: this.strategy };
   }
 }
