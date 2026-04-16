@@ -1,5 +1,16 @@
-import type { CachedToken, GetTokenOptions, Storage, TokenResponse, TokenSet } from "./types.js";
+import type { CachedToken, GetTokenOptions, Storage, TokenResponse, TokenSession, TokenSet } from "./types.js";
 import { buildTokenCacheKey } from "./utils.js";
+
+export function resolveSession(stored: TokenSet | undefined, key: string): TokenSession {
+  const cached = stored?.tokens[key];
+  if (cached) {
+    return { type: "active", cached };
+  }
+  if (stored?.refresh_token) {
+    return { type: "refresh-only", refreshToken: stored.refresh_token };
+  }
+  return { type: "empty" };
+}
 
 export type TokenManagerConfig = {
   storage: Storage<TokenSet>;
@@ -47,33 +58,36 @@ export class TokenManager {
   async getToken(options?: GetTokenOptions): Promise<string> {
     const key = buildTokenCacheKey(options);
     const stored = await this.storage.load();
-    const cached = stored?.tokens[key];
+    const session = resolveSession(stored, key);
 
-    // If no cached token for this key but we can refresh, try to fetch
-    if (!cached && (stored?.refresh_token || this.refresh)) {
-      return this.refreshForKey(key, stored?.refresh_token, options);
-    }
-
-    if (!cached) {
-      throw new Error("No token available.");
-    }
-
-    if (this.isExpired(cached)) {
-      const release = await this.storage.lock?.();
-      try {
-        // Re-read from storage after acquiring lock — another process may have refreshed
-        const rechecked = await this.storage.load();
-        const recheckedToken = rechecked?.tokens[key];
-        if (!recheckedToken || this.isExpired(recheckedToken)) {
-          return this.refreshForKey(key, rechecked?.refresh_token, options);
+    switch (session.type) {
+      case "empty": {
+        if (this.refresh) {
+          return this.refreshForKey(key, undefined, options);
         }
-        return recheckedToken.access_token;
-      } finally {
-        await release?.();
+        throw new Error("No token available.");
+      }
+      case "refresh-only": {
+        return this.refreshForKey(key, session.refreshToken, options);
+      }
+      case "active": {
+        if (this.isExpired(session.cached)) {
+          const release = await this.storage.lock?.();
+          try {
+            // Re-read from storage after acquiring lock — another process may have refreshed
+            const rechecked = await this.storage.load();
+            const recheckedToken = rechecked?.tokens[key];
+            if (!recheckedToken || this.isExpired(recheckedToken)) {
+              return this.refreshForKey(key, rechecked?.refresh_token, options);
+            }
+            return recheckedToken.access_token;
+          } finally {
+            await release?.();
+          }
+        }
+        return session.cached.access_token;
       }
     }
-
-    return cached.access_token;
   }
 
   async clear(): Promise<void> {
