@@ -5,17 +5,21 @@ export type TokenManagerConfig = {
   storage: Storage<TokenSet>;
   refresh?: (refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>;
   tokenRefreshThreshold?: number;
+  /** Clock source for computing expiry. Defaults to Date.now. */
+  now?: () => number;
 };
 
 export class TokenManager {
   private readonly storage: Storage<TokenSet>;
   private readonly refresh?: (refreshToken: string | undefined, options?: GetTokenOptions) => Promise<TokenResponse | undefined>;
   private readonly tokenRefreshThreshold?: number;
+  private readonly now: () => number;
 
   constructor(config: TokenManagerConfig) {
     this.storage = config.storage;
     this.refresh = config.refresh;
     this.tokenRefreshThreshold = config.tokenRefreshThreshold;
+    this.now = config.now ?? Date.now;
   }
 
   async hasToken(): Promise<boolean> {
@@ -27,13 +31,15 @@ export class TokenManager {
     const key = buildTokenCacheKey(options);
     const stored = await this.storage.load();
     const tokens = { ...stored?.tokens };
+    const previous = tokens[key];
     tokens[key] = {
       access_token: data.access_token,
-      expires_at: Date.now() + data.expires_in * 1000,
-      scope: data.scope,
+      expires_at: this.now() + data.expires_in * 1000,
+      scope: data.scope ?? previous?.scope,
     };
     await this.storage.save({
       refresh_token: data.refresh_token ?? stored?.refresh_token,
+      id_token: data.id_token ?? stored?.id_token,
       tokens,
     });
   }
@@ -76,7 +82,7 @@ export class TokenManager {
 
   private isExpired(cached: CachedToken): boolean {
     const threshold = (this.tokenRefreshThreshold ?? 300) * 1000;
-    return Date.now() >= cached.expires_at - threshold;
+    return this.now() >= cached.expires_at - threshold;
   }
 
   private async refreshForKey(key: string, refreshToken: string | undefined, options?: GetTokenOptions): Promise<string> {
