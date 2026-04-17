@@ -6,7 +6,6 @@ const clientId = process.env.TOKEN_EXCHANGE_CLIENT_ID!;
 const subjectToken = process.env.TOKEN_EXCHANGE_SUBJECT_TOKEN!;
 
 const provider = {
-  type: "oidc" as const,
   metadata: { tokenEndpoint },
 };
 

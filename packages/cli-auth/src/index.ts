@@ -9,7 +9,6 @@ import { TokenExchangeAuth } from "./strategies/token-exchange.js";
 
 export type { Storage, TokenResponse, GetTokenOptions, TokenSet } from "./types.js";
 export type {
-  ProviderType,
   ProviderMetadata,
   ProviderConfig,
   BaseConfig,

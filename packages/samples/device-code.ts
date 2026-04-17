@@ -4,7 +4,6 @@ import { createCliAuth } from "@logto-io/cli-auth";
 const auth = createCliAuth({
   strategy: "device-code",
   provider: {
-    type: "oidc",
     metadata: {
       deviceAuthorizationEndpoint: process.env.DEVICE_CODE_DEVICE_AUTHORIZATION_ENDPOINT!,
       tokenEndpoint: process.env.DEVICE_CODE_TOKEN_ENDPOINT!,

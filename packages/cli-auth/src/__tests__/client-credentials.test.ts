@@ -36,7 +36,7 @@ function createTestAuth(overrides: Record<string, unknown> = {}) {
   let stored: TokenSet | undefined;
   return createCliAuth({
     strategy: "client-credentials",
-    provider: { type: "oidc", metadata: { tokenEndpoint } },
+    provider: { metadata: { tokenEndpoint } },
     clientId: "my-client",
     clientSecret: "my-secret",
     storage: {

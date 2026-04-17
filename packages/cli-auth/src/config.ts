@@ -4,8 +4,6 @@ import type { Storage, TokenSet } from "./types.js";
 
 // === Provider ===
 
-export const providerTypeSchema = z.enum(["oauth", "oidc"]);
-
 export const providerMetadataSchema = z.object({
   tokenEndpoint: z.string(),
   authorizationEndpoint: z.string().optional(),
@@ -14,7 +12,6 @@ export const providerMetadataSchema = z.object({
 });
 
 export const providerConfigSchema = z.object({
-  type: providerTypeSchema,
   metadata: providerMetadataSchema,
 });
 
@@ -64,7 +61,6 @@ export const tokenExchangeConfigSchema = baseConfigSchema.extend({
 
 // === Inferred types ===
 
-export type ProviderType = z.infer<typeof providerTypeSchema>;
 export type ProviderMetadata = z.infer<typeof providerMetadataSchema>;
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 export type BaseConfig = z.infer<typeof baseConfigSchema>;
