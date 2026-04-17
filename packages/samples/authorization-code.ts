@@ -5,7 +5,6 @@ import { spawn } from "node:child_process";
 const auth = createCliAuth({
   strategy: "authorization-code",
   provider: {
-    type: "oidc",
     metadata: {
       authorizationEndpoint: process.env.AUTH_CODE_AUTHORIZATION_ENDPOINT!,
       tokenEndpoint: process.env.AUTH_CODE_TOKEN_ENDPOINT!,

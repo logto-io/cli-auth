@@ -44,7 +44,7 @@ function useTokenEndpoint(
 function createTestAuth(overrides: Record<string, unknown> = {}) {
   return createCliAuth({
     strategy: "authorization-code" as const,
-    provider: { type: "oidc", metadata: { authorizationEndpoint, tokenEndpoint } },
+    provider: { metadata: { authorizationEndpoint, tokenEndpoint } },
     clientId: "my-client",
     storage: memoryStorage<TokenSet>(),
     ...overrides,
@@ -686,7 +686,6 @@ describe("authorization-code", () => {
 
       const auth = createTestAuth({
         provider: {
-          type: "oidc",
           metadata: { authorizationEndpoint, tokenEndpoint, revocationEndpoint },
         },
       });

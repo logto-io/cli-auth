@@ -42,7 +42,7 @@ function createTestAuth(overrides: Record<string, unknown> = {}) {
   let stored: TokenSet | undefined;
   return createCliAuth({
     strategy: "token-exchange",
-    provider: { type: "oidc", metadata: { tokenEndpoint } },
+    provider: { metadata: { tokenEndpoint } },
     clientId: "my-client",
     subjectToken: "pat_abc123",
     subjectTokenType: "urn:logto:token-type:personal_access_token",
@@ -275,7 +275,6 @@ describe("token-exchange", () => {
 
       const auth = createTestAuth({
         provider: {
-          type: "oidc",
           metadata: { tokenEndpoint, revocationEndpoint },
         },
       });

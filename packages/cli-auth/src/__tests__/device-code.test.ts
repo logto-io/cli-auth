@@ -59,7 +59,7 @@ function useDeviceAuthMock(
 function createTestAuth(overrides: Record<string, unknown> = {}) {
   return createCliAuth({
     strategy: "device-code" as const,
-    provider: { type: "oidc", metadata: { tokenEndpoint, deviceAuthorizationEndpoint: deviceAuthEndpoint } },
+    provider: { metadata: { tokenEndpoint, deviceAuthorizationEndpoint: deviceAuthEndpoint } },
     clientId: "my-client",
     storage: memoryStorage<TokenSet>(),
     ...overrides,
@@ -349,7 +349,6 @@ describe("device-code", () => {
 
       const auth = createTestAuth({
         provider: {
-          type: "oidc",
           metadata: { tokenEndpoint, deviceAuthorizationEndpoint: deviceAuthEndpoint, revocationEndpoint },
         },
       });

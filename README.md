@@ -130,7 +130,6 @@ Best for CLI tools where users authenticate in a browser on any device. No local
 const auth = createCliAuth({
   strategy: "device-code",
   provider: {
-    type: "oidc",
     metadata: {
       tokenEndpoint: "https://your-tenant.logto.dev/oidc/token",
       deviceAuthorizationEndpoint: "https://your-tenant.logto.dev/oidc/device/auth",
@@ -165,7 +164,6 @@ import { spawn } from "node:child_process";
 const auth = createCliAuth({
   strategy: "authorization-code",
   provider: {
-    type: "oidc",
     metadata: {
       authorizationEndpoint: "https://your-tenant.logto.dev/oidc/auth",
       tokenEndpoint: "https://your-tenant.logto.dev/oidc/token",
@@ -199,7 +197,6 @@ For machine-to-machine authentication with no user interaction.
 const auth = createCliAuth({
   strategy: "client-credentials",
   provider: {
-    type: "oidc",
     metadata: {
       tokenEndpoint: "https://your-tenant.logto.dev/oidc/token",
     },
@@ -226,7 +223,6 @@ Exchange an existing token (e.g. a personal access token) for an access token.
 const auth = createCliAuth({
   strategy: "token-exchange",
   provider: {
-    type: "oidc",
     metadata: {
       tokenEndpoint: "https://your-tenant.logto.dev/oidc/token",
     },
