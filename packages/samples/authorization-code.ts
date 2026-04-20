@@ -1,6 +1,8 @@
 import "dotenv/config";
-import { createCliAuth } from "cli-auth";
+import { createCliAuth, memoryStorage } from "cli-auth";
 import { spawn } from "node:child_process";
+
+const storage = memoryStorage();
 
 const auth = createCliAuth({
   strategy: "authorization-code",
@@ -11,13 +13,7 @@ const auth = createCliAuth({
     },
   },
   clientId: process.env.AUTH_CODE_CLIENT_ID!,
-  storage: {
-    load: async () => undefined,
-    save: async (data) => {
-      console.log("\nToken response:", JSON.stringify(data, null, 2));
-    },
-    clear: async () => {},
-  },
+  storage,
   scope: process.env.AUTH_CODE_SCOPE,
   extraParams: { prompt: "consent" },
 });
@@ -31,6 +27,8 @@ await auth.login({
     spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
   },
 });
+
+console.log("\nStored token set:", JSON.stringify(await storage.load(), null, 2));
 
 const status = await auth.status();
 console.log("\nStatus:", status);
