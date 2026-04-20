@@ -45,6 +45,7 @@ export const deviceCodeConfigSchema = baseConfigSchema.extend({
 export const authorizationCodeConfigSchema = baseConfigSchema.extend({
   strategy: z.literal("authorization-code"),
   callbackPort: z.number().optional(),
+  callbackPath: z.string().optional(),
 });
 
 export const tokenExchangeConfigSchema = baseConfigSchema.extend({

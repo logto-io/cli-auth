@@ -220,6 +220,57 @@ describe("authorization-code", () => {
     });
   });
 
+  describe("login — callbackPath", () => {
+    it("uses custom callbackPath in redirect_uri", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({ callbackPath: "/oauth/callback" });
+      const { redirectUri } = await loginWithCallback(auth);
+
+      expect(new URL(redirectUri).pathname).toBe("/oauth/callback");
+    });
+
+    it("supports nested callbackPath", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({ callbackPath: "/auth/v1/callback" });
+      const { redirectUri } = await loginWithCallback(auth);
+
+      expect(new URL(redirectUri).pathname).toBe("/auth/v1/callback");
+    });
+
+    it("only responds to the configured callbackPath", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({ callbackPath: "/oauth/callback" });
+
+      const onAuthorization = vi.fn();
+      const loginPromise = auth.login({ onAuthorization });
+      await vi.waitFor(() => expect(onAuthorization).toHaveBeenCalled());
+
+      const authUrl = new URL(onAuthorization.mock.calls[0]![0]);
+      const redirectUri = authUrl.searchParams.get("redirect_uri")!;
+      const state = authUrl.searchParams.get("state")!;
+      const base = new URL(redirectUri);
+
+      // Hitting the default /callback path should 404 (login stays pending)
+      const wrongPath = new URL(`/callback?code=test&state=${state}`, base);
+      const res = await fetch(wrongPath);
+      expect(res.status).toBe(404);
+
+      // Hitting the configured path completes login
+      await fetch(`${redirectUri}?code=test-auth-code&state=${state}`);
+      await loginPromise;
+      expect(await auth.getToken()).toBe("test-token");
+    });
+
+    it.each([
+      ["callback", "no leading slash"],
+      ["/callback?foo=bar", "contains query"],
+      ["/callback#section", "contains fragment"],
+      ["", "empty"],
+    ])("rejects invalid callbackPath %j (%s)", (callbackPath) => {
+      expect(() => createTestAuth({ callbackPath })).toThrow();
+    });
+  });
+
   describe("custom fetch", () => {
     it("uses config.fetch for token exchange", async () => {
       const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
