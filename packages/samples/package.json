@@ -11,7 +11,7 @@
     "keyring-storage": "tsx keyring-storage.ts"
   },
   "dependencies": {
-    "@logto-io/cli-auth": "workspace:*",
+    "cli-auth": "workspace:*",
     "@napi-rs/keyring": "^1.2.0",
     "dotenv": "^17.4.1"
   },

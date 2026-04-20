@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createCliAuth } from "@logto-io/cli-auth";
+import { createCliAuth } from "cli-auth";
 
 const tokenEndpoint = process.env.TOKEN_EXCHANGE_TOKEN_ENDPOINT!;
 const clientId = process.env.TOKEN_EXCHANGE_CLIENT_ID!;

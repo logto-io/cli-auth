@@ -7,8 +7,8 @@
  * and then removes it. You can observe the entry appearing and disappearing
  * in your OS credential manager (e.g. macOS Keychain Access).
  */
-import { keyringStorage } from "@logto-io/cli-auth";
-import type { TokenSet } from "@logto-io/cli-auth";
+import { keyringStorage } from "cli-auth";
+import type { TokenSet } from "cli-auth";
 import { Entry } from "@napi-rs/keyring";
 
 const SERVICE = "logto-cli-auth-sample";

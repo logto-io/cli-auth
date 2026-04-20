@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createCliAuth } from "@logto-io/cli-auth";
+import { createCliAuth } from "cli-auth";
 
 const auth = createCliAuth({
   strategy: "device-code",

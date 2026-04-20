@@ -1,13 +1,13 @@
-# @logto-io/cli-auth
+# cli-auth
 
 Pluggable authentication for CLI apps — supports OAuth Device Code, Authorization Code + PKCE, Client Credentials, and Token Exchange (RFC 8693).
 
 ## Install
 
 ```bash
-npm install @logto-io/cli-auth
+npm install cli-auth
 # or
-pnpm add @logto-io/cli-auth
+pnpm add cli-auth
 ```
 
 Requires Node.js >= 22.
@@ -17,7 +17,7 @@ Requires Node.js >= 22.
 All strategies share the same lifecycle: **create** → **login** → **getToken** → **logout**.
 
 ```ts
-import { createCliAuth } from "@logto-io/cli-auth";
+import { createCliAuth } from "cli-auth";
 
 const auth = createCliAuth({ strategy: "device-code", ... });
 
@@ -40,7 +40,7 @@ await auth.logout();
 Every strategy requires a `storage` object. You control where tokens are persisted:
 
 ```ts
-import type { Storage } from "@logto-io/cli-auth";
+import type { Storage } from "cli-auth";
 
 const storage: Storage = {
   load: async () => { /* return saved credential or undefined */ },
@@ -54,7 +54,7 @@ const storage: Storage = {
 **memoryStorage** — in-memory, useful for testing or short-lived processes:
 
 ```ts
-import { memoryStorage } from "@logto-io/cli-auth";
+import { memoryStorage } from "cli-auth";
 
 const storage = memoryStorage();
 ```
@@ -62,7 +62,7 @@ const storage = memoryStorage();
 **fileStorage** — JSON file with atomic writes and secure permissions (0o600 file, 0o700 directory):
 
 ```ts
-import { fileStorage } from "@logto-io/cli-auth";
+import { fileStorage } from "cli-auth";
 
 const storage = fileStorage({ dir: "~/.myapp" });
 ```
@@ -70,7 +70,7 @@ const storage = fileStorage({ dir: "~/.myapp" });
 **keyringStorage** — system keyring (macOS Keychain, Windows Credential Store, Linux Secret Service) via [`@napi-rs/keyring`](https://github.com/nicolo-ribaudo/keyring-node):
 
 ```ts
-import { keyringStorage } from "@logto-io/cli-auth";
+import { keyringStorage } from "cli-auth";
 import { Entry } from "@napi-rs/keyring";
 
 const storage = keyringStorage({
@@ -89,7 +89,7 @@ pnpm add @napi-rs/keyring
 When multiple processes share the same storage (e.g. parallel CLI invocations), concurrent token refreshes can cause conflicts. Add a `lock` to serialize refresh operations:
 
 ```ts
-import { fileStorage, fileLock } from "@logto-io/cli-auth";
+import { fileStorage, fileLock } from "cli-auth";
 
 const storage = fileStorage({ dir: "~/.myapp" })
   .withLock(fileLock({ lockPath: "~/.myapp/.lock" }));
@@ -98,7 +98,7 @@ const storage = fileStorage({ dir: "~/.myapp" })
 `fileLock` uses atomic file creation (`O_CREAT | O_EXCL`) to ensure only one process refreshes at a time. This works with any storage backend, including keyringStorage:
 
 ```ts
-import { keyringStorage, fileLock } from "@logto-io/cli-auth";
+import { keyringStorage, fileLock } from "cli-auth";
 import { Entry } from "@napi-rs/keyring";
 
 const storage = keyringStorage({ entry: new Entry("my-app", "tokens") })

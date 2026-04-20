@@ -39,12 +39,12 @@ importers:
 
   packages/samples:
     dependencies:
-      '@logto-io/cli-auth':
-        specifier: workspace:*
-        version: link:../cli-auth
       '@napi-rs/keyring':
         specifier: ^1.2.0
         version: 1.2.0
+      cli-auth:
+        specifier: workspace:*
+        version: link:../cli-auth
       dotenv:
         specifier: ^17.4.1
         version: 17.4.1

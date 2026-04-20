@@ -1,5 +1,5 @@
 {
-  "name": "@logto-io/cli-auth",
+  "name": "cli-auth",
   "version": "0.0.0",
   "description": "Pluggable authentication for CLI apps — OAuth Device Code, Authorization Code + PKCE, Client Credentials, and Token Exchange.",
   "type": "module",
@@ -27,9 +27,6 @@
     "type": "git",
     "url": "https://github.com/logto-io/cli-auth.git",
     "directory": "packages/cli-auth"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
