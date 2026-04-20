@@ -3,15 +3,42 @@ import type { GetTokenOptions } from "../types.js";
 import { TokenManager } from "../token-manager.js";
 import { fetchTokenResponse, refreshTokenGrant, revokeToken } from "../utils.js";
 
+/**
+ * Strategy descriptor linking {@link TokenExchangeConfig} to its
+ * {@link TokenExchangeAuth} implementation. Used by {@link createCliAuth} for
+ * type-level strategy selection.
+ *
+ * @internal
+ */
 export type TokenExchangeStrategy = { config: TokenExchangeConfig; auth: TokenExchangeAuth };
 
+/**
+ * OAuth 2.0 Token Exchange grant (RFC 8693).
+ *
+ * Swaps an existing credential (e.g. a platform-issued identity token, a
+ * SAML assertion) for an access token from the configured provider. Common
+ * use cases include bootstrapping a CLI session from an upstream auth system
+ * without prompting the user again, or impersonation/delegation scenarios
+ * via `actor_token`.
+ *
+ * When the provider issues a refresh token, subsequent
+ * {@link TokenExchangeAuth.getToken | getToken()} calls use the standard
+ * refresh grant; otherwise a fresh exchange is performed on expiry.
+ *
+ * Construct via {@link createCliAuth} with `strategy: "token-exchange"`.
+ */
 export class TokenExchangeAuth {
   private readonly config: TokenExchangeConfig;
   private readonly tokenManager: TokenManager;
   private readonly fetch: typeof fetch;
 
+  /** Literal strategy discriminator returned by {@link status}. */
   readonly strategy = "token-exchange" as const;
 
+  /**
+   * Creates a new strategy instance. Prefer {@link createCliAuth} over calling
+   * this directly.
+   */
   constructor(config: TokenExchangeConfig) {
     this.config = config;
     this.fetch = config.fetch ?? globalThis.fetch;
@@ -72,18 +99,35 @@ export class TokenExchangeAuth {
     return fetchTokenResponse({ endpoint: provider.metadata.tokenEndpoint, body, headers: extraHeaders, fetch: this.fetch });
   }
 
+  /**
+   * Performs the token exchange immediately and persists the resulting
+   * tokens. Useful to fail fast at CLI startup; {@link getToken} will also
+   * trigger the exchange lazily.
+   */
   async login() {
     await this.tokenManager.save(await this.exchangeToken());
   }
 
+  /**
+   * Returns a valid access token for the given `options` key. Refreshes via
+   * the refresh token when available, otherwise re-runs the token exchange.
+   */
   async getToken(options?: GetTokenOptions): Promise<string> {
     return this.tokenManager.getToken(options);
   }
 
+  /**
+   * Clears all persisted tokens. Best-effort revokes the stored refresh
+   * token when the provider exposes a revocation endpoint.
+   */
   async logout(): Promise<void> {
     return this.tokenManager.clear();
   }
 
+  /**
+   * Reports whether any tokens are currently persisted. Does not validate
+   * them with the provider.
+   */
   async status(): Promise<{ authenticated: boolean; strategy: "token-exchange" }> {
     return { authenticated: await this.tokenManager.hasToken(), strategy: this.strategy };
   }

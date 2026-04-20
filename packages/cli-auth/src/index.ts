@@ -27,6 +27,10 @@ export { fileLock } from "./storage/file-lock.js";
 export { keyringStorage } from "./storage/keyring.js";
 export type { KeyringEntry } from "./storage/keyring.js";
 
+/**
+ * Discriminated union of every supported strategy config. Narrow on
+ * `strategy` to get the strategy-specific fields.
+ */
 export type CliAuthConfig =
   | DeviceCodeStrategy["config"]
   | AuthorizationCodeStrategy["config"]
@@ -47,6 +51,33 @@ const strategies: { [K in keyof StrategyMap]: new (config: StrategyMap[K]["confi
   "token-exchange": TokenExchangeAuth,
 };
 
+/**
+ * Creates an authentication client for the strategy declared on `config`.
+ *
+ * The return type is inferred from `config.strategy`, so each call yields the
+ * strategy-specific class ({@link AuthorizationCodeAuth},
+ * {@link DeviceCodeAuth}, {@link ClientCredentialsAuth}, or
+ * {@link TokenExchangeAuth}) with the methods that strategy supports.
+ *
+ * @example Authorization code + PKCE in a desktop CLI
+ * ```ts
+ * import { createCliAuth, fileStorage } from "cli-auth";
+ *
+ * const auth = createCliAuth({
+ *   strategy: "authorization-code",
+ *   provider: { metadata: {
+ *     authorizationEndpoint: "https://issuer.example.com/authorize",
+ *     tokenEndpoint: "https://issuer.example.com/token",
+ *   }},
+ *   clientId: "my-cli",
+ *   scope: "openid profile offline_access",
+ *   storage: fileStorage({ dir: `${process.env.HOME}/.my-cli` }),
+ * });
+ *
+ * await auth.login({ onAuthorization: (url) => console.log(`Open ${url}`) });
+ * const accessToken = await auth.getToken();
+ * ```
+ */
 export function createCliAuth<K extends keyof StrategyMap>(
   config: StrategyMap[K]["config"] & { strategy: K }
 ): StrategyMap[K]["auth"] {

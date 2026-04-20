@@ -44,15 +44,45 @@ function errorFromResult(result: CallbackResult): Error {
   );
 }
 
+/**
+ * Strategy descriptor linking {@link AuthorizationCodeConfig} to its
+ * {@link AuthorizationCodeAuth} implementation. Used by {@link createCliAuth}
+ * for type-level strategy selection.
+ *
+ * @internal
+ */
 export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth: AuthorizationCodeAuth };
 
+/**
+ * OAuth 2.0 Authorization Code + PKCE flow (RFC 6749 §4.1 + RFC 7636).
+ *
+ * Intended for interactive CLI logins on a workstation with a browser. On
+ * {@link AuthorizationCodeAuth.login | login()} the instance:
+ *
+ * 1. Generates a PKCE verifier/challenge and random `state`.
+ * 2. Starts a loopback HTTP server on `127.0.0.1` (random port by default).
+ * 3. Invokes the provided `onAuthorization` callback with the authorization
+ *    URL for the caller to open in the user's browser.
+ * 4. Waits for the provider to redirect back to the loopback callback, then
+ *    exchanges the authorization code for a token set and persists it.
+ *
+ * Construct via {@link createCliAuth} with `strategy: "authorization-code"`.
+ */
 export class AuthorizationCodeAuth {
   private readonly config: AuthorizationCodeConfig;
   private readonly tokenManager: TokenManager;
   private readonly fetch: typeof fetch;
 
+  /** Literal strategy discriminator returned by {@link status}. */
   readonly strategy = "authorization-code" as const;
 
+  /**
+   * Creates a new strategy instance. Prefer {@link createCliAuth} over calling
+   * this directly; the factory picks the right class for your config.
+   *
+   * @throws If `callbackPath` is set but does not start with `/` or contains a
+   *   query string / fragment.
+   */
   constructor(config: AuthorizationCodeConfig) {
     if (
       config.callbackPath !== undefined &&
@@ -79,7 +109,23 @@ export class AuthorizationCodeAuth {
     });
   }
 
+  /**
+   * Runs the interactive login flow end-to-end and persists the resulting
+   * tokens via the configured {@link Storage}.
+   *
+   * The call resolves once the token exchange succeeds. It rejects if the
+   * authorization server returns an error, the `state` parameter mismatches,
+   * or the callback URL is missing an authorization code.
+   *
+   * The loopback server is started on entry and always closed before this
+   * method returns (successfully or not).
+   *
+   * @param options.onAuthorization - Invoked once with the fully-built
+   *   authorization URL. The caller is expected to open it in the user's
+   *   browser (e.g. via `open` or a printed instruction).
+   */
   async login(options: {
+    /** Invoked with the authorization URL to open in the user's browser. */
     onAuthorization: (url: string) => void;
   }) {
     const { clientId, provider, scope, extraParams, resource, callbackPort, callbackPath = "/callback" } = this.config;
@@ -210,14 +256,34 @@ export class AuthorizationCodeAuth {
     await this.tokenManager.save(data);
   }
 
+  /**
+   * Returns a valid access token for the given `options` key.
+   *
+   * Serves a cached token when one is fresh; otherwise refreshes using the
+   * stored refresh token. Concurrent refreshes across processes are
+   * serialized when the configured {@link Storage} provides `lock()`.
+   *
+   * @throws If no token is available and no refresh is possible. Call
+   *   {@link login} first.
+   */
   async getToken(options?: GetTokenOptions): Promise<string> {
     return this.tokenManager.getToken(options);
   }
 
+  /**
+   * Clears all persisted tokens. When the provider exposes a revocation
+   * endpoint, best-effort revokes the stored refresh token first — revocation
+   * failures are swallowed so local cleanup always succeeds.
+   */
   async logout(): Promise<void> {
     return this.tokenManager.clear();
   }
 
+  /**
+   * Reports whether any tokens are currently persisted. Does not verify the
+   * token with the provider — for that, call {@link getToken} and handle
+   * failures.
+   */
   async status(): Promise<{ authenticated: boolean; strategy: "authorization-code" }> {
     return { authenticated: await this.tokenManager.hasToken(), strategy: this.strategy };
   }

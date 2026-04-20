@@ -2,7 +2,35 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Storage, TokenSet } from "../types.js";
 
-export function fileStorage<T = TokenSet>(options: { dir: string }): Storage<T> & {
+/**
+ * A file-backed {@link Storage} that stores credentials as JSON in
+ * `<dir>/credentials.json`.
+ *
+ * Writes go through a `.tmp` sibling and an atomic `rename`, so readers
+ * never observe a partially written file. The directory is created with
+ * mode `0700` and the file with mode `0600`, so other local users cannot
+ * read the tokens.
+ *
+ * The returned object also exposes {@link withLock} for pairing the storage
+ * with a cross-process lock (e.g. {@link fileLock}) — needed if more than
+ * one CLI invocation may refresh tokens concurrently.
+ *
+ * @example
+ * ```ts
+ * import { fileStorage, fileLock } from "cli-auth";
+ *
+ * const storage = fileStorage({ dir: `${process.env.HOME}/.my-cli` })
+ *   .withLock(fileLock({ lockPath: `${process.env.HOME}/.my-cli/credentials.lock` }));
+ * ```
+ */
+export function fileStorage<T = TokenSet>(options: {
+  /** Directory to read/write `credentials.json` from. Created if missing. */
+  dir: string;
+}): Storage<T> & {
+  /**
+   * Wraps the base storage with a cross-process `lock` implementation. The
+   * returned {@link Storage} exposes `lock` on top of the same load/save/clear.
+   */
   withLock(lock: () => Promise<() => Promise<void>>): Storage<T>;
 } {
   const filePath = join(options.dir, "credentials.json");
