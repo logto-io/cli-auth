@@ -1,75 +1,55 @@
-import { z } from "zod/v4";
-
 import type { Storage, TokenSet } from "./types.js";
 
 // === Provider ===
 
-export const providerMetadataSchema = z.object({
-  tokenEndpoint: z.string(),
-  authorizationEndpoint: z.string().optional(),
-  deviceAuthorizationEndpoint: z.string().optional(),
-  revocationEndpoint: z.string().optional(),
-});
+export type ProviderMetadata = {
+  tokenEndpoint: string;
+  authorizationEndpoint?: string;
+  deviceAuthorizationEndpoint?: string;
+  revocationEndpoint?: string;
+};
 
-export const providerConfigSchema = z.object({
-  metadata: providerMetadataSchema,
-});
+export type ProviderConfig = {
+  metadata: ProviderMetadata;
+};
 
 // === Base config (shared by all strategies) ===
 
-export const baseConfigSchema = z.object({
-  provider: providerConfigSchema,
-  clientId: z.string(),
-  storage: z.custom<Storage<TokenSet>>(),
-  resource: z.string().optional(),
-  scope: z.string().optional(),
-  extraParams: z.record(z.string(), z.string()).optional(),
-  tokenRefreshThreshold: z.number().optional(),
-  fetch: z.custom<typeof fetch>().optional(),
-});
+export type BaseConfig = {
+  provider: ProviderConfig;
+  clientId: string;
+  storage: Storage<TokenSet>;
+  resource?: string;
+  scope?: string;
+  extraParams?: Record<string, string>;
+  tokenRefreshThreshold?: number;
+  fetch?: typeof fetch;
+};
 
 // === Strategy configs ===
 
-export const clientCredentialsConfigSchema = baseConfigSchema.extend({
-  strategy: z.literal("client-credentials"),
-  clientSecret: z.string(),
-  tokenEndpointAuthMethod: z
-    .enum(["client_secret_post", "client_secret_basic"])
-    .optional(),
-});
+export type ClientCredentialsConfig = BaseConfig & {
+  strategy: "client-credentials";
+  clientSecret: string;
+  tokenEndpointAuthMethod?: "client_secret_post" | "client_secret_basic";
+};
 
-export const deviceCodeConfigSchema = baseConfigSchema.extend({
-  strategy: z.literal("device-code"),
-});
+export type DeviceCodeConfig = BaseConfig & {
+  strategy: "device-code";
+};
 
-export const authorizationCodeConfigSchema = baseConfigSchema.extend({
-  strategy: z.literal("authorization-code"),
-  callbackPort: z.number().optional(),
-  callbackPath: z.string().optional(),
-});
+export type AuthorizationCodeConfig = BaseConfig & {
+  strategy: "authorization-code";
+  callbackPort?: number;
+  callbackPath?: string;
+};
 
-export const tokenExchangeConfigSchema = baseConfigSchema.extend({
-  strategy: z.literal("token-exchange"),
-  subjectToken: z.string(),
-  subjectTokenType: z.string(),
-  actorToken: z.string().optional(),
-  actorTokenType: z.string().optional(),
-  clientSecret: z.string().optional(),
-  tokenEndpointAuthMethod: z
-    .enum(["client_secret_post", "client_secret_basic"])
-    .optional(),
-});
-
-// === Inferred types ===
-
-export type ProviderMetadata = z.infer<typeof providerMetadataSchema>;
-export type ProviderConfig = z.infer<typeof providerConfigSchema>;
-export type BaseConfig = z.infer<typeof baseConfigSchema>;
-export type ClientCredentialsConfig = z.infer<
-  typeof clientCredentialsConfigSchema
->;
-export type DeviceCodeConfig = z.infer<typeof deviceCodeConfigSchema>;
-export type AuthorizationCodeConfig = z.infer<
-  typeof authorizationCodeConfigSchema
->;
-export type TokenExchangeConfig = z.infer<typeof tokenExchangeConfigSchema>;
+export type TokenExchangeConfig = BaseConfig & {
+  strategy: "token-exchange";
+  subjectToken: string;
+  subjectTokenType: string;
+  actorToken?: string;
+  actorTokenType?: string;
+  clientSecret?: string;
+  tokenEndpointAuthMethod?: "client_secret_post" | "client_secret_basic";
+};
