@@ -34,3 +34,23 @@ jobs:
 
       - name: Test
         run: pnpm -r test
+
+  bun-compat:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node and pnpm
+        uses: silverhand-io/actions-node-pnpm-run-steps@v5
+        with:
+          pnpm-version: 10.8.0
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+
+      - name: Run tests under Bun
+        run: bun x vitest run
+        working-directory: packages/cli-auth
