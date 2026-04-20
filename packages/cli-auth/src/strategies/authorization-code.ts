@@ -1,7 +1,48 @@
-import type { AuthorizationCodeConfig } from "../config.js";
+import type { ServerResponse } from "node:http";
+
+import type { AuthorizationCodeConfig, CallbackResult } from "../config.js";
 import type { GetTokenOptions } from "../types.js";
 import { TokenManager } from "../token-manager.js";
 import { fetchTokenResponse, refreshTokenGrant, revokeToken } from "../utils.js";
+
+const DEFAULT_SUCCESS_HTML = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Authorization successful</title></head><body><h1>Authorization successful</h1><p>You can close this tab and return to your terminal.</p></body></html>`;
+
+const DEFAULT_FAILURE_HTML = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Authorization failed</title></head><body><h1>Authorization failed</h1><p>You can close this tab and return to your terminal.</p></body></html>`;
+
+function classify(url: URL, expectedState: string): CallbackResult {
+  if (url.searchParams.get("error")) {
+    return { success: false, callbackUrl: url };
+  }
+  if (url.searchParams.get("state") !== expectedState) {
+    return { success: false, callbackUrl: url, verifyError: "state_mismatch" };
+  }
+  if (!url.searchParams.get("code")) {
+    return { success: false, callbackUrl: url, verifyError: "missing_code" };
+  }
+  return { success: true, callbackUrl: url };
+}
+
+function writeDefault(res: ServerResponse, result: CallbackResult): void {
+  res
+    .writeHead(result.success ? 200 : 400, {
+      "Content-Type": "text/html; charset=utf-8",
+    })
+    .end(result.success ? DEFAULT_SUCCESS_HTML : DEFAULT_FAILURE_HTML);
+}
+
+function errorFromResult(result: CallbackResult): Error {
+  if (result.verifyError === "state_mismatch") {
+    return new Error("State mismatch");
+  }
+  if (result.verifyError === "missing_code") {
+    return new Error("Missing authorization code");
+  }
+  const err = result.callbackUrl.searchParams.get("error") ?? "unknown";
+  const desc = result.callbackUrl.searchParams.get("error_description");
+  return new Error(
+    desc ? `Authorization failed: ${err} (${desc})` : `Authorization failed: ${err}`
+  );
+}
 
 export type AuthorizationCodeStrategy = { config: AuthorizationCodeConfig; auth: AuthorizationCodeAuth };
 
@@ -101,6 +142,8 @@ export class AuthorizationCodeAuth {
     const closeServer = () =>
       new Promise<void>((resolve) => callbackServer.close(() => resolve()));
 
+    const callbackSource = this.config.callbackSource;
+
     let code: string;
     try {
       code = await new Promise<string>((resolve, reject) => {
@@ -112,30 +155,36 @@ export class AuthorizationCodeAuth {
             return;
           }
 
-          const error = url.searchParams.get("error");
-          if (error) {
-            const description = url.searchParams.get("error_description") ?? error;
-            res.writeHead(400).end(`Authorization failed: ${description}`);
-            reject(new Error(`Authorization failed: ${description}`));
-            return;
-          }
+          const result = classify(url, state);
 
-          const callbackState = url.searchParams.get("state");
-          if (callbackState !== state) {
-            res.writeHead(400).end("State mismatch");
-            reject(new Error("State mismatch"));
-            return;
-          }
+          void (async () => {
+            try {
+              if (callbackSource) {
+                await callbackSource(res, result);
+              } else {
+                writeDefault(res, result);
+              }
+            } catch {
+              // The developer's hook threw. Write a best-effort 500 so the
+              // browser tab does not hang, but never let a rendering bug
+              // change the CLI-side resolve/reject decision below.
+              try {
+                res
+                  .writeHead(500, {
+                    "Content-Type": "text/html; charset=utf-8",
+                  })
+                  .end("<h1>Internal error</h1>");
+              } catch {
+                // Headers may already be sent; nothing more we can do.
+              }
+            }
 
-          const callbackCode = url.searchParams.get("code");
-          if (!callbackCode) {
-            res.writeHead(400).end("Missing authorization code");
-            reject(new Error("Missing authorization code"));
-            return;
-          }
-
-          res.writeHead(200).end("Authorization successful. You can close this tab.");
-          resolve(callbackCode);
+            if (result.success) {
+              resolve(result.callbackUrl.searchParams.get("code")!);
+            } else {
+              reject(errorFromResult(result));
+            }
+          })();
         });
       });
     } catch (error) {
