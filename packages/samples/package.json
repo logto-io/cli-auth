@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "client-credentials": "tsx client-credentials.ts",
-    "authorization-code": "tsx authorization-code.ts",
+    "authorization-code": "tsx authorization-code/index.ts",
     "device-code": "tsx device-code.ts",
     "token-exchange": "tsx token-exchange.ts",
     "keyring-storage": "tsx keyring-storage.ts",
