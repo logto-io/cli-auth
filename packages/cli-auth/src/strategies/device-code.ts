@@ -3,15 +3,42 @@ import type { GetTokenOptions, TokenResponse } from "../types.js";
 import { TokenManager } from "../token-manager.js";
 import { refreshTokenGrant, revokeToken } from "../utils.js";
 
+/**
+ * Strategy descriptor linking {@link DeviceCodeConfig} to its
+ * {@link DeviceCodeAuth} implementation. Used by {@link createCliAuth} for
+ * type-level strategy selection.
+ *
+ * @internal
+ */
 export type DeviceCodeStrategy = { config: DeviceCodeConfig; auth: DeviceCodeAuth };
 
+/**
+ * OAuth 2.0 Device Authorization grant (RFC 8628).
+ *
+ * Intended for CLIs running in environments where opening a browser is
+ * impractical (SSH sessions, containers, headless servers). On
+ * {@link DeviceCodeAuth.login | login()} the instance:
+ *
+ * 1. Requests a device + user code from the provider.
+ * 2. Invokes the caller-supplied `onAuthorization` callback with the user
+ *    code and verification URL so the caller can display them.
+ * 3. Polls the token endpoint until the user approves, the code expires, or
+ *    the provider returns a terminal error.
+ *
+ * Construct via {@link createCliAuth} with `strategy: "device-code"`.
+ */
 export class DeviceCodeAuth {
   private readonly config: DeviceCodeConfig;
   private readonly tokenManager: TokenManager;
   private readonly fetch: typeof fetch;
 
+  /** Literal strategy discriminator returned by {@link status}. */
   readonly strategy = "device-code" as const;
 
+  /**
+   * Creates a new strategy instance. Prefer {@link createCliAuth} over calling
+   * this directly.
+   */
   constructor(config: DeviceCodeConfig) {
     this.config = config;
     this.fetch = config.fetch ?? globalThis.fetch;
@@ -28,11 +55,35 @@ export class DeviceCodeAuth {
     });
   }
 
+  /**
+   * Runs the device code flow end-to-end and persists the resulting tokens
+   * via the configured {@link Storage}.
+   *
+   * Resolves once the user approves on a separate device. Rejects if the
+   * device code expires, or the provider returns a terminal error during
+   * polling.
+   *
+   * @param options.onAuthorization - Invoked once, as soon as the device code
+   *   is obtained, with the user-facing strings the caller should display
+   *   (typically the `userCode` and `verificationUri`, or the single
+   *   pre-filled `verificationUriComplete` if the provider returns one).
+   */
   async login(options: {
+    /**
+     * Invoked once with the strings the user needs to complete the flow on a
+     * separate device.
+     */
     onAuthorization: (authorization: {
+      /** Short code the user types at `verificationUri`. */
       userCode: string;
+      /** URL the user visits to enter `userCode`. */
       verificationUri: string;
+      /**
+       * URL that pre-fills the user code when opened. Not all providers
+       * return this.
+       */
       verificationUriComplete?: string;
+      /** Remaining validity of the device code, in seconds. */
       expiresIn: number;
     }) => void;
   }) {
@@ -128,14 +179,29 @@ export class DeviceCodeAuth {
     throw new Error("Device code expired");
   }
 
+  /**
+   * Returns a valid access token for the given `options` key, refreshing in
+   * the background when the cached token is close to expiry.
+   *
+   * @throws If no token is available and no refresh is possible. Call
+   *   {@link login} first.
+   */
   async getToken(options?: GetTokenOptions): Promise<string> {
     return this.tokenManager.getToken(options);
   }
 
+  /**
+   * Clears all persisted tokens. Best-effort revokes the stored refresh
+   * token when the provider exposes a revocation endpoint.
+   */
   async logout(): Promise<void> {
     return this.tokenManager.clear();
   }
 
+  /**
+   * Reports whether any tokens are currently persisted. Does not validate
+   * them with the provider.
+   */
   async status(): Promise<{ authenticated: boolean; strategy: "device-code" }> {
     return { authenticated: await this.tokenManager.hasToken(), strategy: this.strategy };
   }

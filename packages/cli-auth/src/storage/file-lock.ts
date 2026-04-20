@@ -3,7 +3,24 @@ import { mkdir, open, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
-export function fileLock(options: { lockPath: string }): () => Promise<() => Promise<void>> {
+/**
+ * Returns a `lock` function suitable for {@link Storage.lock}, implemented as
+ * a sentinel lock file opened with `O_CREAT | O_EXCL`.
+ *
+ * The call resolves once the lock is held exclusively, returning a release
+ * function that removes the sentinel. Contending callers busy-wait with a
+ * small sleep between attempts.
+ *
+ * Atomic only on filesystems where `O_EXCL` is atomic (local filesystems;
+ * do not rely on this over networked filesystems like NFS).
+ */
+export function fileLock(options: {
+  /**
+   * Path to the sentinel lock file. Typically a sibling of the credentials
+   * file (e.g. `credentials.lock`). Must be on a local filesystem.
+   */
+  lockPath: string;
+}): () => Promise<() => Promise<void>> {
   const { lockPath } = options;
 
   return async () => {
