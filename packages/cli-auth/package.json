@@ -1,5 +1,5 @@
 {
-  "name": "@logto-io/cli-auth",
+  "name": "cli-auth",
   "version": "0.0.0",
   "description": "Pluggable authentication for CLI apps — OAuth Device Code, Authorization Code + PKCE, Client Credentials, and Token Exchange.",
   "type": "module",
@@ -14,6 +14,7 @@
   ],
   "scripts": {
     "build": "vite build && tsc --emitDeclarationOnly --outDir dist",
+    "prepack": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
@@ -22,6 +23,11 @@
     "node": ">=22.0.0"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/logto-io/cli-auth.git",
+    "directory": "packages/cli-auth"
+  },
   "devDependencies": {
     "@types/node": "^25.5.2",
     "msw": "^2.13.2",

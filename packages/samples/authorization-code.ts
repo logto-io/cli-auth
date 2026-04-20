@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createCliAuth } from "@logto-io/cli-auth";
+import { createCliAuth } from "cli-auth";
 import { spawn } from "node:child_process";
 
 const auth = createCliAuth({
