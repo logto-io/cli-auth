@@ -1,4 +1,5 @@
 import type { GetTokenOptions, TokenResponse } from "./types.js";
+import { CliAuthError } from "./errors.js";
 
 export function buildTokenCacheKey(options?: GetTokenOptions): string {
   const parts: string[] = [];
@@ -26,7 +27,11 @@ export async function fetchTokenResponse(params: {
     body: params.body.toString(),
   });
   if (!response.ok) {
-    throw new Error(`Token request failed with status ${response.status}`);
+    throw new CliAuthError(
+      "request.failed",
+      `Token request failed with status ${response.status}`,
+      { endpoint: "token", status: response.status }
+    );
   }
   return (await response.json()) as TokenResponse;
 }
@@ -47,7 +52,11 @@ export async function revokeToken(params: {
     }).toString(),
   });
   if (!response.ok) {
-    throw new Error(`Token revocation failed with status ${response.status}`);
+    throw new CliAuthError(
+      "request.failed",
+      `Token revocation failed with status ${response.status}`,
+      { endpoint: "revocation", status: response.status }
+    );
   }
 }
 

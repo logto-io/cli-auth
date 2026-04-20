@@ -1,5 +1,6 @@
 import type { DeviceCodeConfig } from "../config.js";
 import type { GetTokenOptions, TokenResponse } from "../types.js";
+import { CliAuthError } from "../errors.js";
 import { TokenManager } from "../token-manager.js";
 import { refreshTokenGrant, revokeToken } from "../utils.js";
 
@@ -90,7 +91,11 @@ export class DeviceCodeAuth {
     const { clientId, provider, resource, scope, extraParams } = this.config;
     const { deviceAuthorizationEndpoint } = provider.metadata;
     if (!deviceAuthorizationEndpoint) {
-      throw new Error("deviceAuthorizationEndpoint is required for device-code strategy");
+      throw new CliAuthError(
+        "config.invalid",
+        "deviceAuthorizationEndpoint is required for device-code strategy",
+        { field: "deviceAuthorizationEndpoint" }
+      );
     }
 
     // Step 1: Request device authorization
@@ -115,8 +120,10 @@ export class DeviceCodeAuth {
     );
 
     if (!deviceAuthResponse.ok) {
-      throw new Error(
-        `Device authorization request failed with status ${deviceAuthResponse.status}`
+      throw new CliAuthError(
+        "request.failed",
+        `Device authorization request failed with status ${deviceAuthResponse.status}`,
+        { endpoint: "device_authorization", status: deviceAuthResponse.status }
       );
     }
 
@@ -165,7 +172,10 @@ export class DeviceCodeAuth {
         return;
       }
 
-      const error = (await tokenResponse.json()) as { error: string };
+      const error = (await tokenResponse.json()) as {
+        error: string;
+        error_description?: string;
+      };
       if (error.error === "authorization_pending") {
         continue;
       }
@@ -173,10 +183,18 @@ export class DeviceCodeAuth {
         pollInterval += 5000;
         continue;
       }
-      throw new Error(`Device code flow failed: ${error.error}`);
+      throw new CliAuthError(
+        "provider.rejected",
+        `Device code flow failed: ${error.error}`,
+        {
+          endpoint: "token",
+          error: error.error,
+          errorDescription: error.error_description,
+        }
+      );
     }
 
-    throw new Error("Device code expired");
+    throw new CliAuthError("device_code.expired", "Device code expired");
   }
 
   /**
