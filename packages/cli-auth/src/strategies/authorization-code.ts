@@ -2,6 +2,7 @@ import type { ServerResponse } from "node:http";
 
 import type { AuthorizationCodeConfig, CallbackResult } from "../config.js";
 import type { GetTokenOptions } from "../types.js";
+import { CliAuthError } from "../errors.js";
 import { TokenManager } from "../token-manager.js";
 import { fetchTokenResponse, refreshTokenGrant, revokeToken } from "../utils.js";
 
@@ -30,17 +31,19 @@ function writeDefault(res: ServerResponse, result: CallbackResult): void {
     .end(result.success ? DEFAULT_SUCCESS_HTML : DEFAULT_FAILURE_HTML);
 }
 
-function errorFromResult(result: CallbackResult): Error {
+function errorFromResult(result: CallbackResult): CliAuthError {
   if (result.verifyError === "state_mismatch") {
-    return new Error("State mismatch");
+    return new CliAuthError("callback.state_mismatch", "State mismatch");
   }
   if (result.verifyError === "missing_code") {
-    return new Error("Missing authorization code");
+    return new CliAuthError("callback.missing_code", "Missing authorization code");
   }
   const err = result.callbackUrl.searchParams.get("error") ?? "unknown";
-  const desc = result.callbackUrl.searchParams.get("error_description");
-  return new Error(
-    desc ? `Authorization failed: ${err} (${desc})` : `Authorization failed: ${err}`
+  const desc = result.callbackUrl.searchParams.get("error_description") ?? undefined;
+  return new CliAuthError(
+    "provider.rejected",
+    desc ? `Authorization failed: ${err} (${desc})` : `Authorization failed: ${err}`,
+    { endpoint: "authorization", error: err, errorDescription: desc }
   );
 }
 
@@ -90,8 +93,10 @@ export class AuthorizationCodeAuth {
         config.callbackPath.includes("?") ||
         config.callbackPath.includes("#"))
     ) {
-      throw new Error(
-        "callbackPath must start with '/' and contain no query or fragment"
+      throw new CliAuthError(
+        "config.invalid",
+        "callbackPath must start with '/' and contain no query or fragment",
+        { field: "callbackPath" }
       );
     }
     this.config = config;
@@ -131,7 +136,11 @@ export class AuthorizationCodeAuth {
     const { clientId, provider, scope, extraParams, resource, callbackPort, callbackPath = "/callback" } = this.config;
     const { authorizationEndpoint } = provider.metadata;
     if (!authorizationEndpoint) {
-      throw new Error("authorizationEndpoint is required for authorization-code strategy");
+      throw new CliAuthError(
+        "config.invalid",
+        "authorizationEndpoint is required for authorization-code strategy",
+        { field: "authorizationEndpoint" }
+      );
     }
 
     const { randomBytes, createHash } = await import("node:crypto");

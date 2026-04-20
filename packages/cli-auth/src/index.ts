@@ -21,6 +21,8 @@ export type {
 } from "./config.js";
 export { TokenManager } from "./token-manager.js";
 export type { TokenManagerConfig } from "./token-manager.js";
+export { CliAuthError } from "./errors.js";
+export type { CliAuthErrorCode } from "./errors.js";
 export { memoryStorage } from "./storage/memory.js";
 export { fileStorage } from "./storage/file.js";
 export { fileLock } from "./storage/file-lock.js";

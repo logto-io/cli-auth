@@ -1,4 +1,5 @@
 import type { CachedToken, GetTokenOptions, Storage, TokenResponse, TokenSession, TokenSet } from "./types.js";
+import { CliAuthError } from "./errors.js";
 import { buildTokenCacheKey } from "./utils.js";
 
 export function resolveSession(stored: TokenSet | undefined, key: string): TokenSession {
@@ -122,7 +123,7 @@ export class TokenManager {
         if (this.refresh) {
           return this.refreshForKey(key, undefined, options);
         }
-        throw new Error("No token available.");
+        throw new CliAuthError("token.unavailable", "No token available.");
       }
       case "refresh-only": {
         return this.refreshForKey(key, session.refreshToken, options);
@@ -174,7 +175,10 @@ export class TokenManager {
   private async refreshForKey(key: string, refreshToken: string | undefined, options?: GetTokenOptions): Promise<string> {
     const data = await this.refresh?.(refreshToken, options);
     if (!data) {
-      throw new Error("Token expired and cannot be refreshed.");
+      throw new CliAuthError(
+        "token.refresh_failed",
+        "Token expired and cannot be refreshed."
+      );
     }
     await this.save(data, options);
     return data.access_token;

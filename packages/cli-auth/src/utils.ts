@@ -1,4 +1,24 @@
 import type { GetTokenOptions, TokenResponse } from "./types.js";
+import { CliAuthError } from "./errors.js";
+
+/**
+ * Tries to read an RFC 6749 §5.2 error response body from `response`.
+ * Returns the parsed `{error, error_description?}` on match, or `undefined`
+ * if the body is missing, not JSON, or doesn't carry a string `error`.
+ */
+export async function tryParseOAuthError(
+  response: Response
+): Promise<{ error: string; error_description?: string } | undefined> {
+  const body = await response.json().catch(() => undefined);
+  if (
+    body !== null &&
+    typeof body === "object" &&
+    typeof (body as { error?: unknown }).error === "string"
+  ) {
+    return body as { error: string; error_description?: string };
+  }
+  return undefined;
+}
 
 export function buildTokenCacheKey(options?: GetTokenOptions): string {
   const parts: string[] = [];
@@ -26,7 +46,25 @@ export async function fetchTokenResponse(params: {
     body: params.body.toString(),
   });
   if (!response.ok) {
-    throw new Error(`Token request failed with status ${response.status}`);
+    const oauthError = await tryParseOAuthError(response);
+    if (oauthError) {
+      throw new CliAuthError(
+        "provider.rejected",
+        oauthError.error_description
+          ? `Token request failed: ${oauthError.error} (${oauthError.error_description})`
+          : `Token request failed: ${oauthError.error}`,
+        {
+          endpoint: "token",
+          error: oauthError.error,
+          errorDescription: oauthError.error_description,
+        }
+      );
+    }
+    throw new CliAuthError(
+      "request.failed",
+      `Token request failed with status ${response.status}`,
+      { endpoint: "token", status: response.status }
+    );
   }
   return (await response.json()) as TokenResponse;
 }
@@ -47,7 +85,11 @@ export async function revokeToken(params: {
     }).toString(),
   });
   if (!response.ok) {
-    throw new Error(`Token revocation failed with status ${response.status}`);
+    throw new CliAuthError(
+      "request.failed",
+      `Token revocation failed with status ${response.status}`,
+      { endpoint: "revocation", status: response.status }
+    );
   }
 }
 
