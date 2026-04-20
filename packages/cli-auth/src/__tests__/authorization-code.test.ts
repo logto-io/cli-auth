@@ -13,6 +13,8 @@ import { createCliAuth } from "../index.js";
 import { memoryStorage } from "../storage/memory.js";
 import type { TokenSet } from "../types.js";
 import { createServer } from "node:http";
+import type { ServerResponse } from "node:http";
+import type { CallbackResult } from "../config.js";
 
 const server = setupServer();
 
@@ -770,6 +772,378 @@ describe("authorization-code", () => {
       await auth.logout();
 
       expect(revokeCalled).toBe(false);
+    });
+  });
+
+  describe("login — callbackSource default response", () => {
+    async function triggerCallback(
+      auth: ReturnType<typeof createTestAuth>,
+      buildQuery: (state: string) => string
+    ) {
+      const onAuthorization = vi.fn();
+      const loginPromise = auth.login({ onAuthorization });
+      // Attach a silent catch so the rejection does not surface as unhandled
+      // while the test body awaits the fetch response first.
+      loginPromise.catch(() => undefined);
+      await vi.waitFor(() => expect(onAuthorization).toHaveBeenCalled());
+
+      const authUrl = new URL(onAuthorization.mock.calls[0]![0]);
+      const redirectUri = authUrl.searchParams.get("redirect_uri")!;
+      const state = authUrl.searchParams.get("state")!;
+
+      const response = await fetch(`${redirectUri}?${buildQuery(state)}`);
+      return { response, loginPromise };
+    }
+
+    it("returns an HTML success page when no hook is configured and callback is valid", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth();
+
+      const { response, loginPromise } = await triggerCallback(
+        auth,
+        (state) => `code=test-auth-code&state=${state}`
+      );
+      await loginPromise;
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8"
+      );
+      const body = await response.text();
+      expect(body).toContain("Authorization successful");
+    });
+
+    it("returns an HTML failure page on provider error callback (no hook)", async () => {
+      const auth = createTestAuth();
+
+      const { response, loginPromise } = await triggerCallback(
+        auth,
+        (state) =>
+          `error=access_denied&error_description=User+denied&state=${state}`
+      );
+      await expect(loginPromise).rejects.toThrow();
+
+      expect(response.status).toBe(400);
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8"
+      );
+      expect(await response.text()).toContain("Authorization failed");
+    });
+
+    it("returns an HTML failure page on state mismatch (no hook)", async () => {
+      const auth = createTestAuth();
+
+      const { response, loginPromise } = await triggerCallback(
+        auth,
+        () => `code=test-auth-code&state=tampered-state`
+      );
+      await expect(loginPromise).rejects.toThrow();
+
+      expect(response.status).toBe(400);
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8"
+      );
+      expect(await response.text()).toContain("Authorization failed");
+    });
+
+    it("returns an HTML failure page when code and error are both missing (no hook)", async () => {
+      const auth = createTestAuth();
+
+      const { response, loginPromise } = await triggerCallback(
+        auth,
+        (state) => `state=${state}`
+      );
+      await expect(loginPromise).rejects.toThrow();
+
+      expect(response.status).toBe(400);
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8"
+      );
+      expect(await response.text()).toContain("Authorization failed");
+    });
+  });
+
+  describe("login — callbackSource hook", () => {
+    async function triggerCallbackWithHook(
+      auth: ReturnType<typeof createTestAuth>,
+      buildQuery: (state: string) => string
+    ) {
+      const onAuthorization = vi.fn();
+      const loginPromise = auth.login({ onAuthorization });
+      loginPromise.catch(() => undefined);
+      await vi.waitFor(() => expect(onAuthorization).toHaveBeenCalled());
+
+      const authUrl = new URL(onAuthorization.mock.calls[0]![0]);
+      const redirectUri = authUrl.searchParams.get("redirect_uri")!;
+      const state = authUrl.searchParams.get("state")!;
+
+      const response = await fetch(`${redirectUri}?${buildQuery(state)}`);
+      return { response, loginPromise };
+    }
+
+    function minimalWrite(res: ServerResponse) {
+      res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
+    }
+
+    it("invokes hook with success=true and code-bearing callbackUrl on valid callback", async () => {
+      useTokenEndpoint();
+      const callbackSource = vi.fn(minimalWrite);
+      const auth = createTestAuth({ callbackSource });
+
+      const { loginPromise } = await triggerCallbackWithHook(
+        auth,
+        (state) => `code=test-auth-code&state=${state}`
+      );
+      await loginPromise;
+
+      expect(callbackSource).toHaveBeenCalledOnce();
+      const call = callbackSource.mock.calls[0]!;
+      const result = call[1] as CallbackResult;
+      expect(result.success).toBe(true);
+      expect(result.callbackUrl).toBeInstanceOf(URL);
+      expect(result.callbackUrl.searchParams.get("code")).toBe(
+        "test-auth-code"
+      );
+      expect(result.verifyError).toBeUndefined();
+    });
+
+    it("invokes hook with success=false and forwarded OAuth error on provider error callback", async () => {
+      const callbackSource = vi.fn(minimalWrite);
+      const auth = createTestAuth({ callbackSource });
+
+      const { loginPromise } = await triggerCallbackWithHook(
+        auth,
+        (state) =>
+          `error=access_denied&error_description=User+denied&state=${state}`
+      );
+      await expect(loginPromise).rejects.toThrow(/access_denied/);
+
+      expect(callbackSource).toHaveBeenCalledOnce();
+      const result = callbackSource.mock.calls[0]![1] as CallbackResult;
+      expect(result.success).toBe(false);
+      expect(result.callbackUrl.searchParams.get("error")).toBe(
+        "access_denied"
+      );
+      expect(result.callbackUrl.searchParams.get("error_description")).toBe(
+        "User denied"
+      );
+      expect(result.verifyError).toBeUndefined();
+    });
+
+    it("invokes hook with verifyError='state_mismatch' when state does not match", async () => {
+      const callbackSource = vi.fn(minimalWrite);
+      const auth = createTestAuth({ callbackSource });
+
+      const { loginPromise } = await triggerCallbackWithHook(
+        auth,
+        () => `code=test-auth-code&state=tampered-state`
+      );
+      await expect(loginPromise).rejects.toThrow();
+
+      expect(callbackSource).toHaveBeenCalledOnce();
+      const result = callbackSource.mock.calls[0]![1] as CallbackResult;
+      expect(result.success).toBe(false);
+      expect(result.verifyError).toBe("state_mismatch");
+    });
+
+    it("invokes hook with verifyError='missing_code' when code and error are both absent", async () => {
+      const callbackSource = vi.fn(minimalWrite);
+      const auth = createTestAuth({ callbackSource });
+
+      const { loginPromise } = await triggerCallbackWithHook(
+        auth,
+        (state) => `state=${state}`
+      );
+      await expect(loginPromise).rejects.toThrow();
+
+      expect(callbackSource).toHaveBeenCalledOnce();
+      const result = callbackSource.mock.calls[0]![1] as CallbackResult;
+      expect(result.success).toBe(false);
+      expect(result.verifyError).toBe("missing_code");
+    });
+
+    it("writes exactly the body and status the hook produced", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({
+        callbackSource: (res) => {
+          res
+            .writeHead(201, { "Content-Type": "text/html; charset=utf-8" })
+            .end("<h1>Hello from Acme</h1>");
+        },
+      });
+
+      const { response, loginPromise } = await triggerCallbackWithHook(
+        auth,
+        (state) => `code=test-auth-code&state=${state}`
+      );
+      await loginPromise;
+
+      expect(response.status).toBe(201);
+      expect(await response.text()).toBe("<h1>Hello from Acme</h1>");
+    });
+
+    it("supports redirecting the browser via the hook", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({
+        callbackSource: (res) => {
+          res
+            .writeHead(302, { Location: "https://myapp.example/cli-success" })
+            .end();
+        },
+      });
+
+      const onAuthorization = vi.fn();
+      const loginPromise = auth.login({ onAuthorization });
+      loginPromise.catch(() => undefined);
+      await vi.waitFor(() => expect(onAuthorization).toHaveBeenCalled());
+
+      const authUrl = new URL(onAuthorization.mock.calls[0]![0]);
+      const redirectUri = authUrl.searchParams.get("redirect_uri")!;
+      const state = authUrl.searchParams.get("state")!;
+
+      const response = await fetch(
+        `${redirectUri}?code=test-auth-code&state=${state}`,
+        { redirect: "manual" }
+      );
+      await loginPromise;
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "https://myapp.example/cli-success"
+      );
+    });
+
+    it("awaits an async hook before resolving login", async () => {
+      useTokenEndpoint();
+      let asyncWorkDone = false;
+      const auth = createTestAuth({
+        callbackSource: async (res) => {
+          await new Promise((r) => setTimeout(r, 30));
+          asyncWorkDone = true;
+          res
+            .writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+            .end("<p>done</p>");
+        },
+      });
+
+      const { response, loginPromise } = await triggerCallbackWithHook(
+        auth,
+        (state) => `code=test-auth-code&state=${state}`
+      );
+      await loginPromise;
+
+      expect(asyncWorkDone).toBe(true);
+      expect(await response.text()).toBe("<p>done</p>");
+    });
+
+    it("passes through a developer-chosen Content-Type", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({
+        callbackSource: (res) => {
+          res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("plain body");
+        },
+      });
+
+      const { response, loginPromise } = await triggerCallbackWithHook(
+        auth,
+        (state) => `code=test-auth-code&state=${state}`
+      );
+      await loginPromise;
+
+      expect(response.headers.get("content-type")).toBe(
+        "text/plain; charset=utf-8"
+      );
+      expect(await response.text()).toBe("plain body");
+    });
+  });
+
+  describe("login — callbackSource failure isolation", () => {
+    async function runCallback(
+      auth: ReturnType<typeof createTestAuth>,
+      buildQuery: (state: string) => string
+    ) {
+      const onAuthorization = vi.fn();
+      const loginPromise = auth.login({ onAuthorization });
+      loginPromise.catch(() => undefined);
+      await vi.waitFor(() => expect(onAuthorization).toHaveBeenCalled());
+
+      const authUrl = new URL(onAuthorization.mock.calls[0]![0]);
+      const redirectUri = authUrl.searchParams.get("redirect_uri")!;
+      const state = authUrl.searchParams.get("state")!;
+
+      const response = await fetch(`${redirectUri}?${buildQuery(state)}`);
+      return { response, loginPromise };
+    }
+
+    it("sends 500 fallback and still resolves login when hook throws synchronously on success", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({
+        callbackSource: () => {
+          throw new Error("render bug");
+        },
+      });
+
+      const { response, loginPromise } = await runCallback(
+        auth,
+        (state) => `code=test-auth-code&state=${state}`
+      );
+      await loginPromise;
+
+      expect(response.status).toBe(500);
+      expect(await auth.getToken()).toBe("test-token");
+    });
+
+    it("sends 500 fallback and still resolves login when hook rejects asynchronously on success", async () => {
+      useTokenEndpoint();
+      const auth = createTestAuth({
+        callbackSource: async () => {
+          await new Promise((r) => setTimeout(r, 10));
+          throw new Error("async render bug");
+        },
+      });
+
+      const { response, loginPromise } = await runCallback(
+        auth,
+        (state) => `code=test-auth-code&state=${state}`
+      );
+      await loginPromise;
+
+      expect(response.status).toBe(500);
+      expect(await auth.getToken()).toBe("test-token");
+    });
+
+    it("does not mask the original OAuth error when hook throws on error callback", async () => {
+      const auth = createTestAuth({
+        callbackSource: () => {
+          throw new Error("this should not surface");
+        },
+      });
+
+      const { response, loginPromise } = await runCallback(
+        auth,
+        (state) =>
+          `error=access_denied&error_description=User+denied&state=${state}`
+      );
+
+      expect(response.status).toBe(500);
+      await expect(loginPromise).rejects.toThrow(/access_denied/);
+    });
+
+    it("does not mask the original state-mismatch error when hook throws on state mismatch", async () => {
+      const auth = createTestAuth({
+        callbackSource: () => {
+          throw new Error("this should not surface");
+        },
+      });
+
+      const { response, loginPromise } = await runCallback(
+        auth,
+        () => `code=test-auth-code&state=tampered`
+      );
+
+      expect(response.status).toBe(500);
+      await expect(loginPromise).rejects.toThrow(/State mismatch/);
     });
   });
 });

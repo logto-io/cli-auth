@@ -16,6 +16,8 @@ export type {
   DeviceCodeConfig,
   AuthorizationCodeConfig,
   TokenExchangeConfig,
+  CallbackResult,
+  CallbackSource,
 } from "./config.js";
 export { TokenManager } from "./token-manager.js";
 export type { TokenManagerConfig } from "./token-manager.js";
