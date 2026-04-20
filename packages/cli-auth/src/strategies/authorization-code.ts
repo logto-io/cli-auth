@@ -13,6 +13,16 @@ export class AuthorizationCodeAuth {
   readonly strategy = "authorization-code" as const;
 
   constructor(config: AuthorizationCodeConfig) {
+    if (
+      config.callbackPath !== undefined &&
+      (!config.callbackPath.startsWith("/") ||
+        config.callbackPath.includes("?") ||
+        config.callbackPath.includes("#"))
+    ) {
+      throw new Error(
+        "callbackPath must start with '/' and contain no query or fragment"
+      );
+    }
     this.config = config;
     this.fetch = config.fetch ?? globalThis.fetch;
     this.tokenManager = new TokenManager({
@@ -31,7 +41,7 @@ export class AuthorizationCodeAuth {
   async login(options: {
     onAuthorization: (url: string) => void;
   }) {
-    const { clientId, provider, scope, extraParams, resource, callbackPort } = this.config;
+    const { clientId, provider, scope, extraParams, resource, callbackPort, callbackPath = "/callback" } = this.config;
     const { authorizationEndpoint } = provider.metadata;
     if (!authorizationEndpoint) {
       throw new Error("authorizationEndpoint is required for authorization-code strategy");
@@ -66,7 +76,7 @@ export class AuthorizationCodeAuth {
       }
     );
 
-    const redirectUri = `http://127.0.0.1:${port}/callback`;
+    const redirectUri = `http://127.0.0.1:${port}${callbackPath}`;
 
     // Build authorization URL
     const authUrl = new URL(authorizationEndpoint);
@@ -97,7 +107,7 @@ export class AuthorizationCodeAuth {
         callbackServer.on("request", (req, res) => {
           const url = new URL(req.url!, `http://127.0.0.1:${port}`);
 
-          if (url.pathname !== "/callback") {
+          if (url.pathname !== callbackPath) {
             res.writeHead(404).end();
             return;
           }
