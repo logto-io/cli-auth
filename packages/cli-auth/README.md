@@ -204,7 +204,7 @@ By default the loopback server renders a minimal built-in HTML page (`200` on su
 const auth = createCliAuth({
   strategy: "authorization-code",
   // ...
-  callbackSource: (res, { success, callbackUrl, verifyError }) => {
+  callbackSource: (res, { success, verifyError }) => {
     res.writeHead(success ? 200 : 400, {
       "Content-Type": "text/html; charset=utf-8",
     });
@@ -213,8 +213,7 @@ const auth = createCliAuth({
     } else if (verifyError) {
       res.end("<h1>Login link expired or tampered</h1>");
     } else {
-      const error = callbackUrl.searchParams.get("error") ?? "unknown";
-      res.end(`<h1>Authorization failed</h1><p>${error}</p>`);
+      res.end("<h1>Authorization failed</h1><p>You can close this tab and try again.</p>");
     }
   },
 });
@@ -225,6 +224,8 @@ The library calls the hook on every callback, successful or failed, passing the 
 - `success`: whether the callback passed local integrity checks (state matched, `code` present, no `error` param).
 - `callbackUrl`: the full callback `URL`. Read `code`, `state`, `error`, `error_description` from `callbackUrl.searchParams`.
 - `verifyError`: `"state_mismatch"` or `"missing_code"` when a local check failed, otherwise `undefined`. Useful for telling local failures apart from OAuth errors returned by the provider.
+
+Values on `callbackUrl` come from the redirect and are attacker-controllable. If you want to surface the provider's `error` or `error_description` on the page, HTML-escape the value before inserting it (or use a templating engine that escapes by default). Do not interpolate raw query parameters into an HTML string the way this note avoids.
 
 Redirecting to a hosted page works too:
 

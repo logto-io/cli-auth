@@ -237,15 +237,21 @@ export type AuthorizationCodeConfig = BaseConfig & {
    * See {@link CallbackSource} for the full hook contract and failure
    * semantics.
    *
+   * Values on `callbackUrl` come from the redirect and are attacker-
+   * controllable. If you want to surface the provider's `error` or
+   * `error_description` on the page, HTML-escape the value before inserting
+   * it (or use a templating engine that escapes by default). The examples
+   * below deliberately do not interpolate raw query parameters into HTML.
+   *
    * @example Custom success copy
    * ```ts
-   * callbackSource: (res, { success, callbackUrl }) => {
+   * callbackSource: (res, { success }) => {
    *   res.writeHead(success ? 200 : 400, {
    *     "Content-Type": "text/html; charset=utf-8",
    *   });
    *   res.end(success
    *     ? "<h1>Logged into Acme</h1><p>You can close this tab.</p>"
-   *     : `<h1>Failed</h1><p>${callbackUrl.searchParams.get("error") ?? "unknown"}</p>`);
+   *     : "<h1>Login failed</h1><p>You can close this tab and try again.</p>");
    * }
    * ```
    *
@@ -264,14 +270,13 @@ export type AuthorizationCodeConfig = BaseConfig & {
    *
    * @example Distinguish OAuth errors from local verification errors
    * ```ts
-   * callbackSource: (res, { success, callbackUrl, verifyError }) => {
+   * callbackSource: (res, { success, verifyError }) => {
    *   res.writeHead(success ? 200 : 400, {
    *     "Content-Type": "text/html; charset=utf-8",
    *   });
    *   if (success) return res.end("<h1>Logged in</h1>");
    *   if (verifyError) return res.end("<h1>Login link expired or tampered</h1>");
-   *   const err = callbackUrl.searchParams.get("error");
-   *   res.end(`<h1>Authorization failed</h1><p>${err ?? "unknown"}</p>`);
+   *   res.end("<h1>Authorization failed</h1><p>You can close this tab and try again.</p>");
    * }
    * ```
    */
