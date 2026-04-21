@@ -1,6 +1,6 @@
 # cli-auth
 
-Pluggable authentication for CLI apps — supports OAuth Device Code, Authorization Code + PKCE, Client Credentials, and Token Exchange (RFC 8693).
+Pluggable authentication for CLI apps. Supports OAuth Device Code, Authorization Code + PKCE, Client Credentials, and Token Exchange (RFC 8693).
 
 ## Install
 
@@ -10,7 +10,7 @@ npm install cli-auth
 pnpm add cli-auth
 ```
 
-Requires Node.js >= 22.
+Runs on Node.js >= 22 and Bun >= 1.3.
 
 ## Quick start
 
@@ -51,7 +51,7 @@ const storage: Storage = {
 
 ### Built-in storage
 
-**memoryStorage** — in-memory, useful for testing or short-lived processes:
+Use `memoryStorage` for tests or short-lived processes:
 
 ```ts
 import { memoryStorage } from "cli-auth";
@@ -59,7 +59,7 @@ import { memoryStorage } from "cli-auth";
 const storage = memoryStorage();
 ```
 
-**fileStorage** — JSON file with atomic writes and secure permissions (0o600 file, 0o700 directory):
+`fileStorage` writes tokens to a JSON file with atomic writes and tight permissions (0o600 on the file, 0o700 on the directory):
 
 ```ts
 import { fileStorage } from "cli-auth";
@@ -67,7 +67,7 @@ import { fileStorage } from "cli-auth";
 const storage = fileStorage({ dir: "~/.myapp" });
 ```
 
-**keyringStorage** — system keyring (macOS Keychain, Windows Credential Store, Linux Secret Service) via [`@napi-rs/keyring`](https://github.com/nicolo-ribaudo/keyring-node):
+`keyringStorage` puts tokens in the system keyring (macOS Keychain, Windows Credential Store, Linux Secret Service) via [`@napi-rs/keyring`](https://github.com/nicolo-ribaudo/keyring-node):
 
 ```ts
 import { keyringStorage } from "cli-auth";
@@ -78,7 +78,7 @@ const storage = keyringStorage({
 });
 ```
 
-`@napi-rs/keyring` is an optional peer dependency — install it separately:
+`@napi-rs/keyring` is an optional peer dependency. Install it separately:
 
 ```bash
 pnpm add @napi-rs/keyring
@@ -152,11 +152,11 @@ await auth.login({
 const token = await auth.getToken();
 ```
 
-The `onAuthorization` callback is called once with the user code and verification URL. The library then polls the token endpoint automatically until the user completes authorization.
+`onAuthorization` fires once with the user code and verification URL. After that, the library polls the token endpoint until the user finishes authorization.
 
 ### Authorization Code + PKCE
 
-Opens a browser for login with a local loopback server to receive the callback. PKCE is handled automatically.
+Opens a browser for login and receives the callback on a local loopback server. The library handles PKCE for you.
 
 ```ts
 import { spawn } from "node:child_process";
@@ -174,6 +174,7 @@ const auth = createCliAuth({
   scope: "openid offline_access profile", // optional
   resource: "https://your-api-resource",   // optional
   callbackPort: 3000,                      // optional, random available port by default
+  callbackPath: "/oauth/callback",         // optional, defaults to "/callback"
   extraParams: { prompt: "consent" },      // optional
 });
 
@@ -188,6 +189,57 @@ const token = await auth.getToken();
 ```
 
 The callback server binds to `127.0.0.1` and shuts down automatically after receiving the authorization code.
+
+### Custom callback path
+
+`callbackPath` controls the path portion of the `redirect_uri` sent to the authorization server. The full URI has the form `http://127.0.0.1:<port><callbackPath>`. It defaults to `/callback` and must start with `/` without a query string or fragment. Set it to match whatever path your OAuth client is registered with (e.g. `/oauth/callback`).
+
+Most providers ignore the port when matching loopback redirect URIs, so you can usually register the URI as `http://127.0.0.1/oauth/callback` without a port and let the library pick a random `callbackPort` at runtime. Pin `callbackPort` to a fixed value only if your provider enforces an exact port match.
+
+### Customizing the callback response
+
+By default the loopback server renders a minimal built-in HTML page (`200` on success, `400` on failure) after the browser is redirected back. Provide a `callbackSource` hook to render your own page, redirect to a hosted landing page, or tailor the error message:
+
+```ts
+const auth = createCliAuth({
+  strategy: "authorization-code",
+  // ...
+  callbackSource: (res, { success, callbackUrl, verifyError }) => {
+    res.writeHead(success ? 200 : 400, {
+      "Content-Type": "text/html; charset=utf-8",
+    });
+    if (success) {
+      res.end("<h1>Logged into MyApp</h1><p>You can close this tab.</p>");
+    } else if (verifyError) {
+      res.end("<h1>Login link expired or tampered</h1>");
+    } else {
+      const error = callbackUrl.searchParams.get("error") ?? "unknown";
+      res.end(`<h1>Authorization failed</h1><p>${error}</p>`);
+    }
+  },
+});
+```
+
+The library calls the hook on every callback, successful or failed, passing the raw Node `ServerResponse` and a result object:
+
+- `success`: whether the callback passed local integrity checks (state matched, `code` present, no `error` param).
+- `callbackUrl`: the full callback `URL`. Read `code`, `state`, `error`, `error_description` from `callbackUrl.searchParams`.
+- `verifyError`: `"state_mismatch"` or `"missing_code"` when a local check failed, otherwise `undefined`. Useful for telling local failures apart from OAuth errors returned by the provider.
+
+Redirecting to a hosted page works too:
+
+```ts
+callbackSource: (res, { success }) => {
+  res.writeHead(302, {
+    Location: success
+      ? "https://myapp.com/cli-success"
+      : "https://myapp.com/cli-failed",
+  });
+  res.end();
+},
+```
+
+If the hook throws, the library writes a minimal `500` fallback to the browser. The CLI-side `login()` result is not affected. Success or failure is decided from `result.success`, not from what the hook did.
 
 ### Client Credentials
 
