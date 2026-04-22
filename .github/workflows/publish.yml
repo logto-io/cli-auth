@@ -31,4 +31,10 @@ jobs:
 
       - name: Publish to npm
         working-directory: packages/cli-auth
-        run: npm publish
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            npm publish --tag beta --provenance
+          else
+            npm publish --provenance
+          fi
