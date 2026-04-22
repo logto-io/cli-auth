@@ -1,7 +1,7 @@
 {
   "name": "cli-auth",
-  "version": "0.0.0",
-  "description": "Pluggable authentication for CLI apps — OAuth Device Code, Authorization Code + PKCE, Client Credentials, and Token Exchange.",
+  "version": "0.1.0-beta.0",
+  "description": "Pluggable authentication for CLI apps. Supports OAuth Device Code, Authorization Code + PKCE, Client Credentials, and Token Exchange (RFC 8693).",
   "type": "module",
   "exports": {
     ".": {

@@ -317,20 +317,6 @@ const auth = createCliAuth({
 });
 ```
 
-## Shared config options
-
-These options are available for all strategies:
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `provider` | `ProviderConfig` | Token endpoint and other provider metadata |
-| `clientId` | `string` | OAuth client ID |
-| `storage` | `Storage` | Token persistence adapter |
-| `resource` | `string?` | Resource indicator (RFC 8707) |
-| `scope` | `string?` | Space-separated scopes |
-| `extraParams` | `Record<string, string>?` | Additional parameters sent in requests |
-| `tokenRefreshThreshold` | `number?` | Seconds before expiry to trigger refresh (default: 300) |
-
 ## License
 
 MIT
