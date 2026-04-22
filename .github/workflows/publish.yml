@@ -26,15 +26,12 @@ jobs:
           pnpm-version: 10.8.0
           node-version: 22
 
-      - name: Ensure npm >= 11.5.1
-        run: npm install -g npm@latest
-
       - name: Publish to npm
         working-directory: packages/cli-auth
         run: |
           VERSION=$(node -p "require('./package.json').version")
           if [[ "$VERSION" == *-* ]]; then
-            npm publish --tag beta --provenance
+            npx --yes npm@11 publish --tag beta --provenance
           else
-            npm publish --provenance
+            npx --yes npm@11 publish --provenance
           fi
