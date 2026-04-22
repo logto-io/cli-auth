@@ -43,10 +43,6 @@ pnpm keyring-storage
 pnpm bun:authorization-code   # same flow under Bun
 ```
 
-## Publishing
-
-Releases are published to npm via the `Publish` workflow (`.github/workflows/publish.yml`) using npm Trusted Publisher (OIDC, provenance-signed). Pushing a tag matching `v*.*.*` triggers a publish of `packages/cli-auth`.
-
 ## License
 
 [MIT](./LICENSE)
