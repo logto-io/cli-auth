@@ -9,7 +9,7 @@ export default defineConfig({
       fileName: "index",
     },
     rollupOptions: {
-      external: [/^node:/],
+      external: [/^node:/, /^@napi-rs\//],
     },
     sourcemap: true,
   },

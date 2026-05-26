@@ -16,6 +16,10 @@ importers:
         version: 6.0.2
 
   packages/cli-auth:
+    dependencies:
+      '@napi-rs/keyring':
+        specifier: '>=1.0.0'
+        version: 1.2.0
     devDependencies:
       '@types/node':
         specifier: ^25.5.2

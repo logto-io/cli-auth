@@ -22,6 +22,14 @@
   "engines": {
     "node": ">=22.0.0"
   },
+  "peerDependencies": {
+    "@napi-rs/keyring": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@napi-rs/keyring": {
+      "optional": true
+    }
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
